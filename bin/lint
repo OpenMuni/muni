@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+# Keep rubocop cache inside the workspace so it works in sandboxed envs.
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$PWD/tmp/cache}"
+mkdir -p "$XDG_CACHE_HOME"
+
+bundle exec rubocop --no-server "$@"

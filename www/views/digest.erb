@@ -1,0 +1,116 @@
+<div
+  class="shell shell--digest native-app"
+  x-data="muniDigest({ hall: '<%= @hall.slug %>', hallName: '<%= h(@hall.name) %>' })"
+  x-init="init()">
+  <header class="topbar ui-material native-chrome">
+    <%= erb :_municipality_selector, layout: false %>
+    <nav class="topbar__nav" aria-label="Site">
+      <%= erb :_water_region_link, layout: false %>
+      <a class="topbar__link" href="/about?hall=<%= @hall.slug %>">About</a>
+    </nav>
+  </header>
+
+  <main class="shell__body digest-shell__body">
+    <nav class="rail native-sidebar" aria-label="Apps">
+      <div class="rail__primary">
+        <%= erb :_app_rail, layout: false, locals: { current_app: :digest } %>
+        <%= erb :_category_rail, layout: false %>
+      </div>
+    </nav>
+
+    <section class="digest-workspace native-dashboard">
+      <header class="digest-head">
+        <div>
+          <h1 x-text="titleLabel()"></h1>
+          <p x-text="editionMeta()"></p>
+        </div>
+      </header>
+
+      <div class="digest-loading" x-show="loading">Loading digest</div>
+
+      <section class="digest-grid" x-show="!loading && cards().length > 0" x-cloak aria-label="Digest feed">
+        <template x-if="leadCard()">
+          <button
+            type="button"
+            class="digest-card digest-card--lead"
+            :class="`digest-card--${cardTone(leadCard())}`"
+            @click="openCard(leadCard())"
+            :aria-label="`Open ${leadCard().title}`">
+            <%= erb :_digest_card, layout: false, locals: { lead: true } %>
+          </button>
+        </template>
+
+        <template x-for="card in secondaryCards()" :key="card.id">
+          <button
+            type="button"
+            class="digest-card"
+            :class="`digest-card--${cardTone(card)}`"
+            @click="openCard(card)"
+            :aria-label="`Open ${card.title}`">
+            <%= erb :_digest_card, layout: false, locals: { lead: false } %>
+          </button>
+        </template>
+      </section>
+
+      <section class="digest-empty ui-panel" x-show="!loading && cards().length === 0" x-cloak>
+        <h2>Digest</h2>
+        <p x-text="warmingText()"></p>
+      </section>
+
+      <footer class="digest-footnotes" x-show="!loading && footnotes().length > 0" x-cloak>
+        <template x-for="note in footnotes()" :key="note">
+          <p x-text="note"></p>
+        </template>
+      </footer>
+
+      <section
+        class="digest-detail-backdrop"
+        x-show="activeCard"
+        x-transition.opacity
+        x-cloak
+        role="dialog"
+        aria-modal="true"
+        :aria-label="activeCard?.title || 'Digest item'"
+        @click.self="closeCard()"
+        @keydown.escape.window="closeCard()">
+        <article class="digest-detail ui-panel">
+          <header class="digest-detail__head">
+            <div>
+              <p class="digest-detail__eyebrow" x-text="detailMeta(activeCard)"></p>
+              <h2 x-text="activeCard?.title"></h2>
+            </div>
+            <button type="button" class="ui-button ui-button--toolbar" @click="closeCard()">Close</button>
+          </header>
+
+          <p class="digest-detail__summary" x-text="activeCard?.summary"></p>
+
+          <dl class="digest-detail__facts">
+            <div x-show="cardSourceName(activeCard)">
+              <dt>Source</dt>
+              <dd x-text="cardSourceName(activeCard)"></dd>
+            </div>
+            <div x-show="cardDate(activeCard)">
+              <dt>Date</dt>
+              <dd x-text="cardDate(activeCard)"></dd>
+            </div>
+            <div x-show="activeCard?.category">
+              <dt>Type</dt>
+              <dd x-text="activeCard?.category"></dd>
+            </div>
+          </dl>
+
+          <div class="digest-detail__actions">
+            <a
+              class="ui-button ui-button--primary"
+              :href="detailHref(activeCard)"
+              target="_blank"
+              rel="noopener"
+              x-show="detailHref(activeCard) !== '#'"
+              x-text="detailActionLabel(activeCard)">
+            </a>
+          </div>
+        </article>
+      </section>
+    </section>
+  </main>
+</div>

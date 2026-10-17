@@ -1,0 +1,2 @@
+Location_Identifier,Activity_StartDate,Activity_StartTime,Activity_StartTimeZone,Activity_TypeCode,Result_MeasureIdentifier,Result_Measure,Result_MeasureUnit,Result_MeasureStatusIdentifier,Result_MeasureQualifierCode,Result_ResultDetectionCondition,DetectionLimit_MeasureA,DetectionLimit_MeasureUnitA,Activity_ActivityIdentifier,LabInfo_Name,ResultAnalyticalMethod_Name,ResultAnalyticalMethod_Identifier
+CRWA-2LARZ,2026-06-17,12:00,EDT,Sample-Routine,synthetic-result-1,24,MPN/100mL,Accepted,,,,,synthetic-activity-1,Example laboratory,Synthetic example method,synthetic-method

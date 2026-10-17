@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Muni · <%= @water_region ? 'Charles River' : @hall&.name || 'muni.fyi' %></title>
+  <% asset_version = [File.mtime(File.join(settings.public_folder, 'css/muni.css')).to_i,
+                      File.mtime(File.join(settings.public_folder, 'js/muni.js')).to_i].max %>
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="/css/muni.css?v=<%= asset_version %>">
+  <script src="https://unpkg.com/htmx.org@2.0.3" defer></script>
+  <script src="https://unpkg.com/pmtiles@4.3.0/dist/pmtiles.js"></script>
+  <script src="https://unpkg.com/@protomaps/basemaps@5.0.1/dist/basemaps.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" defer></script>
+  <script src="https://unpkg.com/marked@12.0.2/marked.min.js" defer></script>
+  <script src="https://unpkg.com/dompurify@3.1.7/dist/purify.min.js" defer></script>
+  <script>
+    window.MUNI_MAPTILER_KEY = <%= (@maptiler_key || '').to_json %>;
+    window.MUNI_MAP_STYLE = <%= (@map_style || '').to_json %>;
+    window.MUNI_MAP_TILES = <%= @map_tiles.to_json %>;
+    window.MUNI_PMTILES_URL = <%= (@pmtiles_url || '/tiles/muni.pmtiles').to_json %>;
+    window.MUNI_PMTILES_READY = <%= !!@pmtiles_ready %>;
+    window.MUNI_BASEMAP_MODE = <%= (@basemap_mode || 'auto').to_json %>;
+    window.MUNI_BASEMAP_ERROR = <%= @basemap_error.to_json %>;
+    window.MUNI_QUERY_LIMIT = <%= Muni::View::DEFAULT_QUERY_LIMIT %>;
+    window.MUNI_DISPLAY = <%= Muni::Display.contract.to_json %>;
+  </script>
+</head>
+<body>
+  <%= yield %>
+  <script src="/js/muni.js?v=<%= asset_version %>"></script>
+  <script src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js" defer></script>
+</body>
+</html>

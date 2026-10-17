@@ -1,0 +1,39 @@
+<%
+  current_app_value = binding.local_variable_defined?(:current_app) ? binding.local_variable_get(:current_app).to_s : ''
+  mode_value = binding.local_variable_defined?(:mode) ? binding.local_variable_get(:mode).to_s : 'link'
+  hall_slug = @hall.slug
+  app_classes = lambda do |id, extra|
+    classes = ['rail__btn', *extra.split]
+    classes << 'is-active' if current_app_value == id
+    classes.join(' ')
+  end
+%>
+<% if @hall.meetings_enabled? %>
+<a
+  class="<%= app_classes.call('trends', 'rail__btn--link') %>"
+  href="/trends?hall=<%= hall_slug %>"
+  title="Trends"
+  aria-label="Trends"
+  <%= 'aria-current="true"' if current_app_value == 'trends' %>>
+  <span class="rail__icon" data-icon="dashboard"></span>
+  <span class="rail__label">Trends</span>
+</a>
+<a
+  class="<%= app_classes.call('digest', 'rail__btn--link') %>"
+  href="/digest?hall=<%= hall_slug %>"
+  title="Digest"
+  aria-label="Digest"
+  <%= 'aria-current="true"' if current_app_value == 'digest' %>>
+  <span class="rail__icon" data-icon="newspaper"></span>
+  <span class="rail__label">Digest</span>
+</a>
+<a
+  class="<%= app_classes.call('meetings', 'rail__btn--link') %>"
+  href="/meetings?hall=<%= hall_slug %>"
+  title="Meetings"
+  aria-label="Meetings"
+  <%= 'aria-current="true"' if current_app_value == 'meetings' %>>
+  <span class="rail__icon" data-icon="landmark"></span>
+  <span class="rail__label">Meetings</span>
+</a>
+<% end %>

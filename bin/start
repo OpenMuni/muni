@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# The web role owns the volume and supervises Caddy, Puma and one scheduler.
+# Other roles remain available for explicit maintenance and rollback commands.
+set -euo pipefail
+
+role="${1:-${FLY_PROCESS_GROUP:-web}}"
+
+cd "$(dirname "$0")/.."
+
+case "$role" in
+  web)
+    bundle exec ruby cli/exe/muni data migrate --json
+
+    exec bundle exec ruby bin/supervise-web
+    ;;
+  beats)
+    exec bundle exec ruby cli/exe/muni beats serve
+    ;;
+  proxy)
+    : "${CADDY_CONFIG:=/app/Caddyfile}"
+    mkdir -p /data/tiles
+    exec /usr/local/bin/caddy run --config "$CADDY_CONFIG" --adapter caddyfile
+    ;;
+  console)
+    exec bundle exec ruby -Icore/lib -Icli/lib -rmuni -rmuni/cli -e 'require "irb"; IRB.start'
+    ;;
+  *)
+    echo "unknown role: $role (web|beats|proxy|console)" >&2
+    exit 64
+    ;;
+esac

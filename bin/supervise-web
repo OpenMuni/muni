@@ -1,0 +1,12 @@
+#!/usr/bin/env ruby
+require 'rbconfig'
+require_relative '../core/lib/muni/process_supervisor'
+
+commands = {
+  'web'   => [RbConfig.ruby, 'cli/exe/muni', 'serve', '--bind=::', '--port=4567'],
+  'proxy' => [ENV.fetch('CADDY_BIN', '/usr/local/bin/caddy'), 'run',
+              '--config', ENV.fetch('CADDY_CONFIG', '/app/Caddyfile'), '--adapter', 'caddyfile']
+}
+commands['beats'] = [RbConfig.ruby, 'cli/exe/muni', 'beats', 'serve'] if ENV['MUNI_WEB_BEATS'] == '1'
+
+exit Muni::ProcessSupervisor.new(commands).run

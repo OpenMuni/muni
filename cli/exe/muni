@@ -1,0 +1,4 @@
+#!/usr/bin/env ruby
+require 'muni/cli'
+
+exit Muni::CLI::Router.new(ARGV).call

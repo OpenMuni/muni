@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Lightweight uptime probe usable from cron or Better Uptime's "custom HTTP
+# monitor" mode. Exits non-zero on any failure so a watchdog can page.
+#
+#   ./bin/uptime-check                    # checks http://127.0.0.1:4567
+#   MUNI_BASE=https://your-muni.example ./bin/uptime-check
+set -euo pipefail
+
+BASE="${MUNI_BASE:-http://127.0.0.1:4567}"
+
+probe() {
+  local path="$1" expected="$2"
+  local body
+  body=$(curl -fsSL "$BASE$path" 2>&1) || {
+    echo "[FAIL] $path: curl failed" >&2
+    return 1
+  }
+  if ! echo "$body" | grep -q "$expected"; then
+    echo "[FAIL] $path: missing \"$expected\"" >&2
+    return 1
+  fi
+  echo "[OK] $path"
+}
+
+probe /healthz '"ok":true'
+probe /api/halls '"slug":"cambridge"'
+probe /api/categories?hall=cambridge '"service_requests"'
+
+if [[ "${MUNI_CHECK_READY:-0}" == "1" ]]; then
+  probe /readyz '"ready":true'
+fi
+
+echo OK

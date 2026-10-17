@@ -1,0 +1,13 @@
+{
+  "boathouses": [
+    {
+      "boathouse": "Example Community Boathouse",
+      "latitude": 42.35,
+      "longitude": -71.12,
+      "overridden": false,
+      "reach": 2,
+      "reason": null,
+      "safe": true
+    }
+  ]
+}

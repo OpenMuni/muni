@@ -1,0 +1,488 @@
+<% status = @status %>
+<% overall = status[:overall_status].to_s %>
+<% duration = lambda do |seconds|
+     value = seconds.to_i
+     if value <= 0
+       'now'
+     elsif value < 120
+       "#{value}s"
+     elsif value < 7200
+       "#{(value / 60.0).round}m"
+     elsif value < 172_800
+       "#{(value / 3600.0).round}h"
+     else
+       "#{(value / 86_400.0).round}d"
+     end
+   end %>
+<% mode_label = lambda { |mode| mode.to_s.tr('_', ' ') } %>
+<% metric = lambda { |key| status.dig(:metrics, key) || 0 } %>
+<% source_groups = status[:sources].group_by { |source| source[:source_mode] } %>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="refresh" content="60">
+  <title>Muni Status</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17202a;
+      --muted: #647386;
+      --line: #d9e2ec;
+      --panel: #ffffff;
+      --page: #f5f8fb;
+      --green: #13795b;
+      --green-bg: #e8f6ef;
+      --amber: #9a5b00;
+      --amber-bg: #fff3d6;
+      --red: #b42318;
+      --red-bg: #fde8e7;
+      --blue: #275d8c;
+      --blue-bg: #e8f2fb;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    a {
+      color: var(--blue);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    .status-shell {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 48px;
+    }
+
+    .status-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .brand {
+      display: grid;
+      gap: 2px;
+    }
+
+    .brand strong {
+      font-size: 1.05rem;
+      font-weight: 750;
+    }
+
+    .brand span,
+    .meta {
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .hero {
+      display: grid;
+      gap: 20px;
+      padding: 28px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 18px 50px rgba(20, 34, 49, 0.08);
+    }
+
+    .hero-main {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 8vw, 4.4rem);
+      line-height: 0.98;
+      letter-spacing: 0;
+      max-width: 760px;
+    }
+
+    h2 {
+      font-size: 1.05rem;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      font-size: 0.96rem;
+      letter-spacing: 0;
+    }
+
+    .summary {
+      color: var(--muted);
+      max-width: 720px;
+      font-size: 1rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 36px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .badge--operational {
+      color: var(--green);
+      background: var(--green-bg);
+    }
+
+    .badge--degraded {
+      color: var(--amber);
+      background: var(--amber-bg);
+    }
+
+    .badge--outage {
+      color: var(--red);
+      background: var(--red-bg);
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .metric {
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdff;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 1.35rem;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .section {
+      margin-top: 28px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .checks {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .check {
+      min-height: 132px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .check strong {
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .check p,
+    .source-note {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      display: inline-block;
+      margin-right: 7px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .dot--degraded {
+      background: var(--amber);
+    }
+
+    .dot--outage {
+      background: var(--red);
+    }
+
+    .source-group {
+      margin-top: 16px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .source-group__title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 13px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfdff;
+    }
+
+    .source-table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 750;
+      text-transform: uppercase;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .source-name {
+      display: grid;
+      gap: 2px;
+      min-width: 220px;
+    }
+
+    .source-name code {
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+    }
+
+    .status-text {
+      font-weight: 750;
+      text-transform: capitalize;
+    }
+
+    .status-text--operational {
+      color: var(--green);
+    }
+
+    .status-text--degraded {
+      color: var(--amber);
+    }
+
+    .status-text--outage {
+      color: var(--red);
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 28px;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    @media (max-width: 860px) {
+      .status-shell {
+        width: min(100% - 24px, 1120px);
+        padding-top: 18px;
+      }
+
+      .status-top,
+      .hero-main,
+      .section-head,
+      .footer {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .hero {
+        padding: 20px;
+      }
+
+      .metrics,
+      .checks {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="status-shell">
+    <header class="status-top">
+      <div class="brand">
+        <strong>Muni Status</strong>
+        <span><%= h(status[:name] || 'Cambridge, MA') %></span>
+      </div>
+      <a href="/status.json">status.json</a>
+    </header>
+
+    <section class="hero" aria-labelledby="status-title">
+      <div class="hero-main">
+        <div>
+          <h1 id="status-title"><%= h status.dig(:summary, :label) %></h1>
+          <p class="summary"><%= h status.dig(:summary, :message) %></p>
+        </div>
+        <span class="badge badge--<%= h overall %>"><%= h status.dig(:summary, :label) %></span>
+      </div>
+      <div class="metrics" aria-label="Status metrics">
+        <div class="metric">
+          <strong><%= h metric.call(:operational_sources) %></strong>
+          <span>operational sources</span>
+        </div>
+        <div class="metric">
+          <strong><%= h metric.call(:degraded_sources) %></strong>
+          <span>degraded sources</span>
+        </div>
+        <div class="metric">
+          <strong><%= h metric.call(:total_records) %></strong>
+          <span>public records tracked</span>
+        </div>
+        <div class="metric">
+          <% last_success = status.dig(:metrics, :last_successful_collection_at) %>
+          <strong><%= last_success ? h(last_success.to_s[0, 10]) : 'n/a' %></strong>
+          <span>last successful collection</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="checks-title">
+      <div class="section-head">
+        <h2 id="checks-title">Checks</h2>
+        <p class="meta">Updated <%= h status[:generated_at] %></p>
+      </div>
+      <div class="checks">
+        <% status[:checks].each do |check| %>
+          <% check_status = check[:status].to_s %>
+          <article class="check">
+            <strong>
+              <span class="dot dot--<%= h check_status %>" aria-hidden="true"></span>
+              <%= h check[:label] %>
+            </strong>
+            <p><%= h check[:detail] %></p>
+          </article>
+        <% end %>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="sources-title">
+      <div class="section-head">
+        <h2 id="sources-title">Data Sources</h2>
+        <p class="meta"><%= h metric.call(:total_sources) %> Cambridge sources</p>
+      </div>
+
+      <% source_groups.each do |mode, sources| %>
+        <section class="source-group" aria-label="<%= h mode_label.call(mode) %> sources">
+          <header class="source-group__title">
+            <h3><%= h mode_label.call(mode).capitalize %></h3>
+            <span class="meta"><%= sources.length %> source<%= 's' unless sources.length == 1 %></span>
+          </header>
+          <div class="source-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Source</th>
+                  <th>Status</th>
+                  <th>Rows</th>
+                  <th>Data age</th>
+                  <th>Last collected</th>
+                  <th>Completeness</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% sources.each do |source| %>
+                  <% source_status = source[:status].to_s %>
+                  <tr>
+                    <td>
+                      <div class="source-name">
+                        <strong><%= h source[:label] %></strong>
+                        <code><%= h source[:source] %></code>
+                        <% if source[:note] %>
+                          <span class="source-note"><%= h source[:note] %></span>
+                        <% end %>
+                      </div>
+                    </td>
+                    <td>
+                      <span class="status-text status-text--<%= h source_status %>"><%= h source_status %></span>
+                      <% if source[:reason] %>
+                        <div class="source-note"><%= h source[:reason] %></div>
+                      <% end %>
+                    </td>
+                    <td><%= h source[:row_count] %></td>
+                    <td><%= source[:data_lag_seconds] ? h(duration.call(source[:data_lag_seconds])) : 'n/a' %></td>
+                    <td><%= source[:last_success_at] ? h(source[:last_success_at].to_s[0, 10]) : 'n/a' %></td>
+                    <td><%= h mode_label.call(source[:completeness]) %></td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      <% end %>
+    </section>
+
+    <% if Array(@status[:water]).any? %>
+      <section class="source-group">
+        <h2>Shared Charles River water sources</h2>
+        <p>Optional monitoring is separate from municipal readiness. <a href="/water/charles?view=datasets">Charles River datasets</a></p>
+        <div class="table-wrap"><table><thead><tr><th>Source</th><th>Evidence</th><th>Collection</th></tr></thead><tbody>
+          <% @status[:water].each do |source| %><tr>
+            <td><%= h source[:label] %></td><td><%= h source[:status] %></td>
+            <td><%= h(source[:collection_explanation] || source[:collection_status] || 'incomplete') %></td>
+          </tr><% end %>
+        </tbody></table></div>
+      </section>
+    <% end %>
+    <footer class="footer">
+      <span>Muni Status</span>
+      <span>Refreshes every 60 seconds</span>
+    </footer>
+  </main>
+</body>
+</html>

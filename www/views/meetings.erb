@@ -1,0 +1,129 @@
+<div
+  class="shell shell--digest native-app"
+  x-data="muniMeetings({ hall: '<%= @hall.slug %>' })"
+  x-init="init()">
+  <header class="topbar ui-material native-chrome">
+    <%= erb :_municipality_selector, layout: false %>
+    <nav class="topbar__nav" aria-label="Site">
+      <%= erb :_water_region_link, layout: false %>
+      <a class="topbar__link" href="/about?hall=<%= @hall.slug %>">About</a>
+    </nav>
+  </header>
+
+  <main class="shell__body digest-shell__body">
+    <nav class="rail native-sidebar" aria-label="Apps">
+      <div class="rail__primary">
+        <%= erb :_app_rail, layout: false, locals: { current_app: :meetings } %>
+        <%= erb :_category_rail, layout: false %>
+      </div>
+    </nav>
+
+    <section class="digest-workspace native-dashboard">
+      <header class="digest-head">
+        <div>
+          <h1>Meetings</h1>
+          <p x-text="editionMeta()"></p>
+        </div>
+      </header>
+
+      <div class="digest-loading" x-show="loading">Loading meetings</div>
+
+      <section class="digest-grid" x-show="!loading && meetings().length > 0" x-cloak aria-label="Meetings">
+        <template x-for="m in meetings()" :key="m.external_id">
+          <button
+            type="button"
+            class="digest-card digest-card--blue"
+            @click="openMeeting(m)"
+            :aria-label="`Open ${m.title}`">
+            <p class="digest-card__eyebrow" x-text="cardEyebrow(m)"></p>
+            <h3 class="digest-card__title" x-text="m.title"></h3>
+            <p class="digest-card__summary" x-text="brief(m)"></p>
+            <p class="meeting-card__tag" x-show="!hasSummary(m)">Summary pending</p>
+          </button>
+        </template>
+      </section>
+
+      <section class="digest-empty ui-panel" x-show="!loading && meetings().length === 0" x-cloak>
+        <h2>Meetings</h2>
+        <p>No meeting records yet. They are collected from the Cambridge Granicus archive.</p>
+      </section>
+
+      <!-- Detail (renders from the in-memory record; no extra fetch) -->
+      <section
+        class="digest-detail-backdrop"
+        x-show="activeMeeting"
+        x-transition.opacity
+        x-cloak
+        role="dialog"
+        aria-modal="true"
+        :aria-label="activeMeeting?.title || 'Meeting'"
+        @click.self="closeMeeting()"
+        @keydown.escape.window="closeMeeting()">
+        <article class="digest-detail ui-panel">
+          <header class="digest-detail__head">
+            <div>
+              <p class="digest-detail__eyebrow" x-text="cardEyebrow(activeMeeting)"></p>
+              <h2 x-text="activeMeeting?.title"></h2>
+            </div>
+            <button type="button" class="ui-button ui-button--toolbar" @click="closeMeeting()">Close</button>
+          </header>
+
+          <!-- AI summary on top -->
+          <template x-if="hasSummary(activeMeeting)">
+            <div class="meeting-detail__summary">
+              <p class="meeting-detail__summary-label"><span x-text="summaryKindLabel(activeMeeting)"></span> <span x-text="summaryModelLabel(activeMeeting)"></span></p>
+              <p class="digest-detail__summary" x-text="activeMeeting?.ai_summary"></p>
+              <ul class="meeting-topics" x-show="topics(activeMeeting).length">
+                <template x-for="t in topics(activeMeeting)" :key="t">
+                  <li class="meeting-topics__chip" x-text="t"></li>
+                </template>
+              </ul>
+            </div>
+          </template>
+          <p class="digest-detail__summary" x-show="!hasSummary(activeMeeting)">
+            Summary refreshes when official agenda, minutes, or final actions are available.
+          </p>
+
+          <!-- Supporting details -->
+          <dl class="digest-detail__facts">
+            <div x-show="activeMeeting?.body"><dt>Body</dt><dd x-text="activeMeeting?.body"></dd></div>
+            <div x-show="activeMeeting?.meeting_at"><dt>Date</dt><dd x-text="fullDate(activeMeeting)"></dd></div>
+            <div x-show="activeMeeting?.duration"><dt>Duration</dt><dd x-text="activeMeeting?.duration"></dd></div>
+            <div x-show="activeMeeting?.source_text_kind"><dt>Summary source</dt><dd x-text="summarySourceLabel(activeMeeting)"></dd></div>
+          </dl>
+
+          <!-- People involved -->
+          <div class="meeting-people" x-show="people(activeMeeting).length">
+            <p class="meeting-detail__summary-label">People involved</p>
+            <ul class="meeting-people__list">
+              <template x-for="p in people(activeMeeting)" :key="p.email || p.name">
+                <li><span class="meeting-people__name" x-text="p.name"></span><span class="meeting-people__role" x-text="p.role ? ` — ${p.role}` : ''"></span></li>
+              </template>
+            </ul>
+          </div>
+
+          <!-- Documents + Ask -->
+          <div class="digest-detail__actions">
+            <a class="ui-button" :href="activeMeeting?.agenda_url" target="_blank" rel="noopener" x-show="activeMeeting?.agenda_url">Agenda</a>
+            <a class="ui-button" :href="activeMeeting?.minutes_url" target="_blank" rel="noopener" x-show="activeMeeting?.minutes_url">Minutes</a>
+            <a class="ui-button" :href="activeMeeting?.video_url" target="_blank" rel="noopener" x-show="activeMeeting?.video_url">Video</a>
+
+          </div>
+        </article>
+      </section>
+    </section>
+  </main>
+</div>
+
+<style>
+  .meeting-card__tag { font-size: 12px; opacity: 0.6; margin-top: 8px; }
+  .meeting-detail__summary-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; margin: 0 0 4px; }
+  .meeting-detail__summary-label span { text-transform: none; letter-spacing: 0; }
+  .meeting-detail__summary { margin-bottom: 16px; }
+  .meeting-topics { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 10px 0 0; }
+  .meeting-topics__chip { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--color-surface-sunken, rgba(127,127,127,0.14)); }
+  .meeting-people { margin: 4px 0 16px; }
+  .meeting-people__list { list-style: none; padding: 0; margin: 6px 0 0; columns: 2; }
+  .meeting-people__name { font-weight: 600; }
+  .meeting-people__role { opacity: 0.65; }
+</style>

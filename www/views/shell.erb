@@ -1,0 +1,474 @@
+<div
+  class="shell native-app"
+  :class="{ 'shell--events': eventCategory() }"
+  x-data="muniShell({ hall: '<%= @hall.slug %>', category: '<%= @initial_category.to_s %>' })"
+  data-bbox='<%= @hall.bbox.to_json %>'
+  data-center='<%= @hall.center.to_json %>'
+  data-boundary='<%= @hall.boundary.to_json %>'>
+  <header class="topbar ui-material native-chrome">
+    <%= erb :_municipality_selector, layout: false %>
+    <nav class="topbar__nav" aria-label="Site">
+      <%= erb :_water_region_link, layout: false %>
+      <a class="topbar__link" href="/about?hall=<%= @hall.slug %>">About</a>
+    </nav>
+  </header>
+
+  <main class="shell__body" :class="{ 'has-subrail-space': subnavLayoutOpen() }">
+    <nav class="rail rail--dynamic native-sidebar" x-ref="rail" @keydown="railKeydown($event)">
+      <div class="rail__primary">
+        <%= erb :_app_rail, layout: false, locals: { mode: :shell } %>
+        <template x-for="group in groupedCategories" :key="group.section">
+          <div
+            class="rail__bundle"
+            :class="{ 'is-active': sectionHasActiveCategory(group), 'has-subnav': hasNavSubitems(group), 'is-subnav-open': isSubnavOpen(group) }">
+          <button
+            type="button"
+            class="rail__btn rail__bundle-btn"
+            :class="{ 'is-active': sectionHasActiveCategory(group) }"
+            :title="group.section"
+            :aria-label="group.section"
+            :aria-current="sectionHasActiveCategory(group) ? 'true' : 'false'"
+            @click="togglePrimaryNav(group)">
+            <span class="rail__section-icon" :data-icon="sectionIcon(group.section)" aria-hidden="true"></span>
+            <span class="rail__label" x-text="group.section"></span>
+          </button>
+          <template x-if="hasNavSubitems(group)">
+            <div class="rail__subdrawer" role="menu" :aria-label="`${group.section} categories`">
+              <template x-for="item in navItemsForGroup(group)" :key="item.key">
+                <button
+                  type="button"
+                  class="rail__sub-btn"
+                  :class="{ 'is-active': navItemActive(item), 'is-disabled': item.disabled }"
+                  :disabled="item.disabled"
+                  :title="item.disabled ? 'Awaiting data' : item.title"
+                  :data-slug="item.slug"
+                  @click.stop="selectNavItem(item)"
+                  :aria-label="item.title"
+                  :aria-current="navItemActive(item) ? 'true' : 'false'"
+                  role="menuitem">
+                  <span class="rail__icon" :data-icon="item.icon" aria-hidden="true"></span>
+                  <span class="rail__sub-label" x-text="item.label"></span>
+                </button>
+              </template>
+            </div>
+          </template>
+          </div>
+        </template>
+      </div>
+    </nav>
+
+    <section class="list-pane native-pane" :class="{ 'is-open': mobileListOpen, 'is-map-detail-hidden': selected && isParkingRecord(selected) && defaultWidget === 'map' }">
+      <header class="list-pane__head">
+        <h2 x-text="categoryTitle"></h2>
+        <div class="list-pane__tools ui-toolbar">
+          <span class="muted" x-text="rowsLoading ? 'Loading…' : `${rows.length} items`"></span>
+          <button
+            type="button"
+            class="filter-toggle open-now-toggle ui-button ui-button--toolbar"
+            :class="{ 'is-active': openNowActive }"
+            x-show="showOpenNowToggle"
+            x-cloak
+            :aria-pressed="openNowActive ? 'true' : 'false'"
+            @click="toggleOpenNow()">
+            <span>Open Now</span>
+          </button>
+          <button
+            type="button"
+            class="filter-toggle ui-button ui-button--toolbar"
+            :class="{ 'is-active': filterOpen || activeFilterCount > 0 }"
+            :aria-expanded="filterOpen ? 'true' : 'false'"
+            aria-controls="filter-popover"
+            :disabled="facets.length === 0"
+            :title="facets.length === 0 ? 'No filters available' : 'Filters'"
+            @click="filterOpen = !filterOpen">
+            <span>Filter</span>
+            <span
+              class="filter-toggle__count"
+              x-show="activeFilterCount > 0"
+              x-text="activeFilterCount"></span>
+          </button>
+        </div>
+      </header>
+      <ul class="list-pane__rows" x-ref="listRows">
+        <template x-if="rowsLoading">
+          <template x-for="i in 6" :key="'skel-' + i">
+            <li class="row row--skeleton ui-list-row" aria-hidden="true">
+              <span class="row__dot"></span>
+              <div class="row__body">
+                <span class="skeleton skeleton--time"></span>
+                <span class="skeleton skeleton--title"></span>
+                <span class="skeleton skeleton--sub"></span>
+              </div>
+            </li>
+          </template>
+        </template>
+        <template x-if="!rowsLoading && !eventCategory()">
+          <template x-for="row in rows" :key="row.external_id">
+            <li class="row ui-list-row"
+                :class="{ 'is-active': selected?.external_id === row.external_id, 'is-hovered': rowIsHovered(row) }"
+                @click="select(row)"
+                @mouseenter="hoveredId = row.external_id"
+                @mouseleave="hoveredId = null">
+              <span class="row__dot" :class="rowDotClass(row)" :style="rowDotStyle(row)"></span>
+              <div class="row__body">
+                <template x-if="showRowTime(row)">
+                  <time class="row__time" x-text="relativeTime(row)"></time>
+                </template>
+                <div class="row__title" x-text="rowTitle(row)"></div>
+                <div class="row__sub muted" x-text="rowSubtitle(row)"></div>
+                <div class="row__meta" x-show="rowMeta(row).length > 0">
+                  <template x-for="item in rowMeta(row)" :key="`${item.label}:${item.value}`">
+                    <span class="row__pill" :class="item.tone ? `row__pill--${item.tone}` : ''">
+                      <span class="sr-only" x-text="`${item.label}: `"></span>
+                      <span x-text="item.value"></span>
+                    </span>
+                  </template>
+                </div>
+              </div>
+            </li>
+          </template>
+        </template>
+        <template x-if="!rowsLoading && eventCategory()">
+          <template x-for="group in eventListGroups()" :key="group.key">
+            <li
+              class="event-day-group"
+              :class="{ 'is-event-today': group.timing === 'today', 'is-event-upcoming': group.timing === 'upcoming' }"
+              :data-event-day="group.key">
+              <button
+                type="button"
+                class="event-day-separator"
+                @click="selectEventDay(group.key)"
+                :aria-label="`View ${group.countLabel} for ${group.label}`">
+                <span>
+                  <strong x-text="group.label"></strong>
+                  <small x-text="group.sublabel"></small>
+                </span>
+                <em x-text="group.countLabel"></em>
+              </button>
+              <ul class="event-day-group__rows">
+                <template x-for="row in group.rows" :key="row.external_id">
+                  <li class="row ui-list-row"
+                      :class="{ 'is-active': selected?.external_id === row.external_id, 'is-hovered': rowIsHovered(row), 'is-event-today': eventTiming(row) === 'today', 'is-event-upcoming': eventTiming(row) === 'upcoming' }"
+                      @click="select(row)"
+                      @mouseenter="hoveredId = row.external_id"
+                      @mouseleave="hoveredId = null">
+                    <span class="row__dot" :class="rowDotClass(row)" :style="rowDotStyle(row)"></span>
+                    <div class="row__body">
+                      <template x-if="showRowTime(row)">
+                        <time class="row__time" x-text="relativeTime(row)"></time>
+                      </template>
+                      <div class="row__title" x-text="rowTitle(row)"></div>
+                      <div class="row__sub muted" x-text="rowSubtitle(row)"></div>
+                      <div class="row__meta" x-show="rowMeta(row).length > 0">
+                        <template x-for="item in rowMeta(row)" :key="`${item.label}:${item.value}`">
+                          <span class="row__pill" :class="item.tone ? `row__pill--${item.tone}` : ''">
+                            <span class="sr-only" x-text="`${item.label}: `"></span>
+                            <span x-text="item.value"></span>
+                          </span>
+                        </template>
+                      </div>
+                    </div>
+                  </li>
+                </template>
+              </ul>
+            </li>
+          </template>
+        </template>
+        <template x-if="!rowsLoading">
+          <li class="row row--empty ui-list-row" x-show="rows.length === 0">
+            <span x-text="emptyMessage"></span>
+          </li>
+        </template>
+      </ul>
+    </section>
+
+    <div
+      id="filter-popover"
+      class="filter-popover ui-popover"
+      x-show="filterOpen && facets.length > 0"
+      x-cloak
+      @click.outside="filterOpen = false"
+      @keydown.escape.stop.prevent="filterOpen = false"
+      role="dialog"
+      aria-label="Filters">
+      <div class="filter-popover__head">
+        <strong>Filters</strong>
+        <button
+          type="button"
+          class="filter-popover__clear ui-button ui-button--toolbar"
+          x-show="activeFilterCount > 0"
+          @click="clearFilters()">Reset</button>
+      </div>
+      <div class="filter-popover__body">
+        <template x-for="facet in facets" :key="facet.name">
+          <div class="filter-group">
+            <span class="filter-group__label" x-text="facetLabel(facet)"></span>
+            <div class="filter-group__options">
+              <template x-for="value in facet.values" :key="value">
+                <button
+                  type="button"
+                  class="filter-chip ui-chip"
+                  :class="{ 'is-active': filters[facet.name] === value }"
+                  :aria-pressed="filters[facet.name] === value ? 'true' : 'false'"
+                  :title="facetValueLabel(facet, value)"
+                  @click="toggleFilter(facet.name, value)"
+                  x-text="facetValueLabel(facet, value)"></button>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <section class="body-pane native-map" :class="{ 'body-pane--events': eventCategory() }">
+      <div id="map" class="body-pane__map" :class="{ 'map--light': !window.MUNI_MAPTILER_KEY }" x-show="defaultWidget === 'map' && !eventCategory()"></div>
+      <div class="map-empty" x-show="defaultWidget === 'map' && !mapError && geoFeatureCount === 0 && !rowsLoading" x-cloak>
+        <span x-text="mapEmptyMessage"></span>
+      </div>
+      <div class="map-error" x-show="mapError && defaultWidget === 'map'" x-cloak>
+        <div class="map-error__panel">
+          <strong>Basemap unavailable</strong>
+          <p class="muted" x-text="mapError"></p>
+          <button type="button" class="ui-button ui-button--toolbar" @click="retryMap()">Retry</button>
+        </div>
+      </div>
+      <button type="button" class="mobile-list-toggle ui-button" @click="toggleMobileList()" x-show="defaultWidget === 'map'">
+        <span x-text="mobileListOpen ? 'Hide list' : 'Show list'"></span>
+      </button>
+      <div class="body-pane__list" x-show="defaultWidget === 'list' && !eventCategory()">
+        <template x-for="row in rows.slice(0,20)" :key="row.external_id">
+          <article class="card card--list ui-panel">
+            <header x-text="rowTitle(row)"></header>
+            <p x-text="rowSubtitle(row) || row.description || ''"></p>
+          </article>
+        </template>
+      </div>
+
+      <section class="events-calendar" x-show="eventCategory()" x-cloak aria-label="Events calendar">
+        <div class="events-calendar__layout" :class="{ 'has-selection': selected }">
+          <div class="events-calendar__board">
+            <header class="events-calendar__head">
+              <div>
+                <p>Events</p>
+                <h3 x-text="eventsCalendarTitle()"></h3>
+              </div>
+              <div class="events-calendar__active" aria-label="Active event counts">
+                <span class="events-calendar__active-label">Active</span>
+                <div class="events-calendar__active-stats">
+                  <span class="events-calendar__active-stat is-event-today">
+                    <strong x-text="eventsActiveSummary().today"></strong>
+                    <em>today</em>
+                  </span>
+                  <span
+                    class="events-calendar__active-stat is-event-upcoming"
+                    title="Upcoming events this week"
+                    aria-label="Upcoming events this week">
+                    <strong x-text="eventsActiveSummary().upcomingThisWeek"></strong>
+                    <em>upcoming</em>
+                  </span>
+                </div>
+              </div>
+            </header>
+            <div class="events-calendar__weekdays" aria-hidden="true">
+              <template x-for="day in calendarWeekdays()" :key="day">
+                <span x-text="day"></span>
+              </template>
+            </div>
+            <div class="events-calendar__grid">
+              <template x-for="day in eventsCalendarDays()" :key="day.key">
+                <article
+                  class="events-calendar__day"
+                  :class="{ 'is-blank': day.blank, 'is-today': day.today, 'has-events': !day.blank && day.events.length > 0, 'is-event-today': day.timing === 'today', 'is-event-upcoming': day.timing === 'upcoming' }">
+                  <template x-if="!day.blank">
+                    <div>
+                      <button
+                        type="button"
+                        class="events-calendar__date"
+                        :disabled="day.events.length === 0"
+                        :title="day.events.length > 0 ? `View ${day.events.length} events on ${day.accessibleLabel}` : day.accessibleLabel"
+                        @click="selectEventDay(day.key)"
+                        x-text="day.label"></button>
+                      <div class="events-calendar__items">
+                        <template x-for="event in day.events.slice(0,3)" :key="event.external_id">
+                          <button
+                            type="button"
+                            class="events-calendar__event"
+                            :class="{ 'is-active': selected?.external_id === event.external_id, 'is-event-today': eventTiming(event) === 'today', 'is-event-upcoming': eventTiming(event) === 'upcoming' }"
+                            @click.stop="select(event)"
+                            :title="rowTitle(event)">
+                            <span x-text="eventCalendarTime(event)"></span>
+                            <strong x-text="rowTitle(event)"></strong>
+                          </button>
+                        </template>
+                        <button
+                          type="button"
+                          class="events-calendar__more"
+                          x-show="day.events.length > 3"
+                          @click.stop="select(day.events[3])"
+                          x-text="`+${day.events.length - 3} more`"></button>
+                      </div>
+                    </div>
+                  </template>
+                </article>
+              </template>
+            </div>
+          </div>
+
+          <aside
+            class="event-card"
+            :class="{ 'is-event-today': eventTiming(selected) === 'today', 'is-event-upcoming': eventTiming(selected) === 'upcoming' }"
+            x-show="selected"
+            x-cloak
+            aria-label="Selected event">
+            <header class="event-card__panel-head">
+              <div>
+                <span>Event details</span>
+                <strong x-text="eventSourceLabel(selected)"></strong>
+              </div>
+              <button
+                type="button"
+                class="event-card__close ui-icon-button"
+                @click="selected = null"
+                aria-label="Hide event details"
+                title="Hide event details">✕</button>
+            </header>
+            <div class="event-card__content">
+              <template x-if="eventImageUrl(selected)">
+                <div class="event-card__media">
+                  <img :src="eventImageUrl(selected)" :alt="rowTitle(selected)" loading="lazy">
+                </div>
+              </template>
+              <div class="event-card__topline">
+                <div class="event-card__date">
+                  <span x-text="eventDateParts(selected).month"></span>
+                  <strong x-text="eventDateParts(selected).day"></strong>
+                  <span x-text="eventDateParts(selected).weekday"></span>
+                </div>
+                <div class="event-card__title">
+                  <div class="event-card__badges">
+                    <span x-show="selected?.category" x-text="eventCategoryLabel(selected)"></span>
+                  </div>
+                  <h3 x-text="rowTitle(selected)"></h3>
+                  <p x-text="eventDurationLabel(selected)"></p>
+                </div>
+              </div>
+              <div class="event-card__facts">
+                <div>
+                  <span>When</span>
+                  <strong x-text="eventTimeRange(selected)"></strong>
+                </div>
+                <div>
+                  <span>Where</span>
+                  <strong x-text="eventLocation(selected)"></strong>
+                </div>
+              </div>
+              <p class="event-card__summary" x-show="eventSummary(selected)" x-text="eventSummary(selected)"></p>
+              <div class="event-card__tags" x-show="eventTags(selected).length > 0">
+                <template x-for="tag in eventTags(selected)" :key="tag">
+                  <span x-text="tag"></span>
+                </template>
+              </div>
+            </div>
+            <div class="event-card__actions">
+              <a
+                class="event-card__primary ui-button ui-button--primary"
+                x-show="eventUrl(selected)"
+                :href="eventUrl(selected)"
+                target="_blank"
+                rel="noopener">Open event</a>
+              <span x-show="!eventUrl(selected)" x-text="eventSourceHost(selected)"></span>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <aside class="detail" :class="{ 'detail--parking': isParkingRecord(selected) }" x-show="selected && !eventCategory()" x-cloak>
+        <header class="detail__head">
+          <div class="detail__title">
+            <h3 x-text="rowTitle(selected)"></h3>
+            <div class="detail__summary" x-show="rowMeta(selected).length > 0">
+              <template x-for="item in rowMeta(selected)" :key="`${item.label}:${item.value}`">
+                <span class="row__pill" :class="item.tone ? `row__pill--${item.tone}` : ''" x-text="item.value"></span>
+              </template>
+            </div>
+          </div>
+          <button class="detail__close ui-icon-button" @click="selected = null" aria-label="Hide details" title="Hide details">✕</button>
+        </header>
+        <template x-if="isParkingRecord(selected)">
+          <section class="parking-card" aria-label="Parking estimate">
+            <div class="parking-card__price">
+              <span x-text="parkingCostCaption(selected)"></span>
+              <strong x-text="parkingCostLabel(selected)"></strong>
+            </div>
+            <div class="parking-card__formula" aria-label="Parking session cost formula">
+              <span>
+                <em>Rate</em>
+                <strong x-text="parkingFormulaRate(selected)"></strong>
+              </span>
+              <b aria-hidden="true">x</b>
+              <span>
+                <em>Time</em>
+                <strong x-text="parkingFormulaTime(selected)"></strong>
+              </span>
+              <b aria-hidden="true">=</b>
+              <span>
+                <em>Cost</em>
+                <strong x-text="parkingFormulaCost(selected)"></strong>
+              </span>
+            </div>
+            <div class="parking-stepper">
+              <button
+                type="button"
+                class="parking-stepper__button ui-icon-button"
+                @click="adjustParkingDuration(-parkingStepMinutes())"
+                :disabled="!canAdjustParkingDuration(-parkingStepMinutes())"
+                aria-label="Remove 15 minutes"
+                title="Remove 15 minutes">-</button>
+              <div class="parking-stepper__value">
+                <strong x-text="formatMinutes(parkingDurationMinutes)"></strong>
+                <span>Selected time</span>
+              </div>
+              <button
+                type="button"
+                class="parking-stepper__button ui-icon-button"
+                @click="adjustParkingDuration(parkingStepMinutes())"
+                :disabled="!canAdjustParkingDuration(parkingStepMinutes())"
+                aria-label="Add 15 minutes"
+                title="Add 15 minutes">+</button>
+            </div>
+            <div class="parking-facts">
+              <div>
+                <span>Rate</span>
+                <strong x-text="parkingFact(selected, 'rate')"></strong>
+              </div>
+              <div>
+                <span>Max stay</span>
+                <strong x-text="parkingFact(selected, 'max')"></strong>
+              </div>
+              <div>
+                <span>Hours</span>
+                <strong x-text="parkingFact(selected, 'hours')"></strong>
+              </div>
+              <div>
+                <span>Zone</span>
+                <strong x-text="parkingFact(selected, 'zone')"></strong>
+              </div>
+            </div>
+            <p class="parking-card__warning" x-show="parkingWarning(selected)" x-text="parkingWarning(selected)"></p>
+          </section>
+        </template>
+        <dl class="detail__props">
+          <template x-for="prop in selectedProps" :key="prop.key">
+            <div class="detail__pair">
+              <dt x-text="prop.label"></dt>
+              <dd>
+                <a x-show="prop.link" :href="prop.value" target="_blank" rel="noopener" class="detail__link ui-button ui-button--primary ui-button--toolbar">Source</a>
+                <span x-show="!prop.link" x-text="prop.value"></span>
+              </dd>
+            </div>
+          </template>
+        </dl>
+      </aside>
+    </section>
+  </main>
+</div>

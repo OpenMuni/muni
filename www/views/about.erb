@@ -1,0 +1,37 @@
+<div class="about-page native-app">
+  <header class="topbar ui-material native-chrome">
+    <%= erb :_municipality_selector, layout: false %>
+    <nav class="topbar__nav" aria-label="Site">
+      <%= erb :_water_region_link, layout: false %>
+      <span class="topbar__link is-current">About</span>
+    </nav>
+  </header>
+
+  <main class="about-page__body">
+    <section class="about-page__content ui-panel" aria-labelledby="about-title">
+      <p class="about-page__eyebrow">About Muni</p>
+      <h1 id="about-title">Municipal information for every human.</h1>
+      <p>
+        MUNI stands for <strong>Municipal Unified Network of Information</strong>.
+        We bring public records, maps, meetings, and local services together so
+        anyone can find, understand, and use the information that shapes daily life.
+      </p>
+      <p>
+        Our mission is to make municipal information accessible to all humans&mdash;not
+        only government staff, data specialists, or people who already know where
+        to look. Understanding the place you live should not require insider knowledge.
+      </p>
+      <p>
+        Muni.fyi is an independent civic project. We believe
+        better access to local information helps people participate in, care for,
+        and improve the places they call home.
+      </p>
+      <p class="about-page__note">
+        Muni.fyi is evolving. Information may be incomplete, delayed, or inaccurate.
+        If you spot something that needs correction, email
+        <a href="mailto:hello@muni.fyi">hello@muni.fyi</a>. Your report helps
+        us correct the record and improve our data pipelines.
+      </p>
+    </section>
+  </main>
+</div>

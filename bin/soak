@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Phase 2 soak test. Runs the supervisor loop for a bounded window, then
+# asserts that:
+#   - the SQLite file grew
+#   - no `database is locked` errors were logged
+#   - at least one beat completed without error
+# Override SOAK_DURATION (seconds) to extend.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+SOAK_DURATION="${SOAK_DURATION:-300}"   # 5 minutes by default; 86400 for 24h
+LOG_FILE="${MUNI_LOG_FILE:-tmp/soak.log}"
+mkdir -p "$(dirname "$LOG_FILE")"
+
+echo "==> Migrating schema"
+bundle exec muni data migrate --json > /dev/null
+
+DB="data/db/muni.sqlite3"
+SIZE_BEFORE=$(stat -f%z "$DB" 2>/dev/null || stat -c%s "$DB")
+echo "==> SQLite size before: $SIZE_BEFORE bytes"
+
+echo "==> Running supervisor for $SOAK_DURATION seconds (log: $LOG_FILE)"
+MUNI_LOG_FILE="$LOG_FILE" timeout --preserve-status "$SOAK_DURATION" \
+  bundle exec muni beats serve || true
+
+SIZE_AFTER=$(stat -f%z "$DB" 2>/dev/null || stat -c%s "$DB")
+echo "==> SQLite size after:  $SIZE_AFTER bytes"
+
+if grep -qi 'database is locked' "$LOG_FILE"; then
+  echo "FAIL: SQLite reported lock contention during soak"
+  exit 1
+fi
+
+if [ "$SIZE_AFTER" -le "$SIZE_BEFORE" ]; then
+  echo "FAIL: DB did not grow during soak; check $LOG_FILE for beat errors"
+  exit 1
+fi
+
+OK_COUNT=$(bundle exec muni beats tail --limit 200 --json \
+  | ruby -rjson -e 'puts JSON.parse(STDIN.read).count { |r| r["error"].nil? && r["rows_upserted"].to_i > 0 }')
+echo "==> Successful beat runs with row writes: $OK_COUNT"
+
+if [ "$OK_COUNT" -lt 1 ]; then
+  echo "FAIL: no beat completed with row writes during soak window"
+  exit 1
+fi
+
+echo "OK"

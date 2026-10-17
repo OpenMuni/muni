@@ -1,0 +1,21 @@
+hall:
+  slug: boston
+  name: "Boston, MA"
+  timezone: "America/New_York"
+  bbox: [-71.1912, 42.2279, -70.8045, 42.3974]
+  center: [-71.0589, 42.3601]
+  sources:
+    - boston/service_requests
+    - boston/crime_reports
+    - boston/vision_zero_crashes
+    - boston/building_permits
+    - boston/new_construction_permits
+    - boston/development_projects
+    - boston/zoning_appeals
+    - boston/metered_parking_spaces
+    - boston/tree_inventory
+    - boston/parks
+    - boston/food_trucks
+    - boston/bicycle_counts
+    - boston/construction_highlights
+    - boston/city_calendar

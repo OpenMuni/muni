@@ -1,0 +1,95 @@
+.water-shell { height: 100dvh; }
+.water-shell .shell__body { position:relative; grid-template-columns: var(--rail-w) minmax(0,1fr); }
+.water-shell .shell__body.water-map-layout { grid-template-columns:var(--rail-w) var(--list-w) minmax(0,1fr); }
+.water-workspace { padding: 20px 24px 64px; }
+.water-workspace .dashboard-head { justify-content: flex-start; align-items: baseline; margin-bottom: 12px; }
+.water-workspace h1 { font-size: 24px; }
+.water-workspace p { line-height: 1.45; }
+.water-workspace button:focus-visible,.water-workspace select:focus-visible,.water-workspace a:focus-visible { outline:3px solid var(--color-focus); outline-offset:3px; }
+.water-notice { background:#fff8e9; border:1px solid #e6d9b7; border-radius:var(--radius-card); padding:10px 14px; margin:12px 0; font-size:12px; }
+.water-notice p { margin:4px 0 0; }
+.water-filters { display:flex; flex-wrap:wrap; align-items:end; gap:12px; margin:16px 0; }
+.water-workspace label { display:grid; gap:5px; font-size:11px; font-weight:600; min-width:0; }
+.water-workspace select,.water-workspace input { max-width:100%; min-width:0; border:1px solid var(--color-separator); background:var(--color-surface); color:var(--color-text); border-radius:var(--radius-control); padding:7px 9px; font:inherit; font-size:12px; }
+.water-filters label:has(select[x-model="location"]) { max-width:320px; }
+.water-custom-range { display:flex; align-items:end; gap:8px; }
+.water-timezone { padding-bottom:7px; font-size:11px; }
+.water-metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.water-metric-section { margin-top:24px; }
+.water-metric-section > h2 { margin:0 0 12px; font-size:16px; }
+.water-refresh { margin-left:auto; }
+.water-dataset { gap:10px; padding:16px; }
+.water-dataset header h3 { margin:0; font-size:14px; }
+.water-dataset .metric-kpi { justify-content:flex-start; }
+.water-dataset .metric-kpi strong { font-size:28px; }
+.water-dataset .metric-note { margin:0; }
+.water-dataset .row__pill { white-space:nowrap; }
+.water-series-label select { width:100%; }
+.water-chart svg { display:block; width:100%; height:auto; }
+.water-chart text { fill:var(--color-text-muted); font-size:10px; }
+.water-chart-grid { stroke:var(--color-separator); }
+.water-panel-actions,.water-pagination { display:flex; align-items:center; gap:8px; }
+.water-pagination { justify-content:flex-end; margin:14px 0; font-size:12px; }
+.water-pagination span { margin-right:auto; }
+.water-shell .water-text-button { background:none; border:0; padding:0; color:var(--color-accent); text-align:left; font:inherit; font-size:12px; cursor:pointer; text-decoration:underline; }
+.water-changes { margin-top:24px; }
+.water-changes h2 { font-size:16px; }
+.water-changes .civic-signals__grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.water-map-pane { min-width:0; }
+.water-location-list { min-height:0; }
+.water-location-list .row__dot { background:#185e47; }
+.water-location-list .row.is-hovered { background:var(--color-accent-soft); }
+.water-location-readings { margin:0; }
+.water-marker { width:14px; height:14px; padding:0; border:2px solid white; border-radius:50%; background:#185e47; box-shadow:0 1px 3px #0005; cursor:pointer; }
+.water-marker[aria-pressed="true"],.water-marker.is-hovered { background:var(--color-accent); box-shadow:0 0 0 4px #007aff40; }
+.water-marker:focus-visible { outline:3px solid var(--color-focus); outline-offset:3px; }
+.water-map-notices { position:absolute; top:12px; left:12px; right:56px; max-width:420px; z-index:2; }
+.water-map-notices .water-notice { margin:0; background:var(--color-material-strong); }
+.water-table-wrap { overflow:auto; margin:10px 0; }
+.water-workspace table { width:100%; border-collapse:collapse; text-align:left; font-size:12px; }
+.water-workspace td,.water-workspace th { padding:10px; border-bottom:1px solid var(--color-separator); vertical-align:top; }
+.water-workspace th { color:var(--color-text-muted); font-weight:600; }
+.water-workspace summary { cursor:pointer; color:var(--color-text-muted); font-size:12px; padding:8px 0; }
+.water-sources { margin-top:20px; border-top:1px solid var(--color-separator); padding-top:8px; }
+.water-source-status { display:block; margin-top:4px; }
+.water-dialog { width:min(800px,92vw); max-height:85dvh; border:1px solid var(--color-separator); border-radius:var(--radius-card); padding:20px; background:var(--color-surface); color:var(--color-text); }
+.water-dialog::backdrop { background:#122e2580; }
+.water-dialog form { text-align:right; }
+.water-dialog .detail__props { padding:12px 0; }
+.water-dialog pre { overflow:auto; max-height:450px; padding:12px; background:var(--color-bg); font-size:11px; white-space:pre-wrap; overflow-wrap:anywhere; }
+.water-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
+@media(max-width:639px) {
+  .water-shell { --mobile-rail-h:calc(64px + env(safe-area-inset-bottom)); }
+  .water-shell .shell__body,.water-shell .shell__body.water-map-layout { grid-template-columns:minmax(0,1fr); }
+  .water-shell .rail__primary { justify-content:space-around; }
+  .water-shell .rail__btn { width:64px; height:56px; gap:4px; }
+  .water-shell .rail__label { display:block; position:static; width:auto; height:auto; margin:0; overflow:visible; clip:auto; }
+  .water-workspace { padding:16px 12px 88px; }
+  .water-metric-grid,.water-changes .civic-signals__grid { grid-template-columns:minmax(0,1fr); }
+  .water-filters { gap:10px; }
+  .water-filters label:has(select[x-model="location"]) { max-width:100%; width:100%; order:3; }
+  .water-dataset { padding:12px; }
+  .water-map-layout { padding-bottom:var(--mobile-rail-h); }
+  .water-location-list { bottom:var(--mobile-rail-h); }
+  .water-location-list:not(.is-open) { visibility:hidden; }
+  .water-location-list .list-pane__rows { padding-bottom:68px; }
+  .water-records-table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
+  .water-records-table tr { display:block; padding:12px 0; border-bottom:1px solid var(--color-separator); }
+  .water-records-table td { display:block; border:0; padding:4px 0; overflow-wrap:anywhere; }
+  .water-records-table td[data-label] { display:grid; grid-template-columns:105px minmax(0,1fr); gap:10px; }
+  .water-records-table td[data-label]::before { content:attr(data-label); color:var(--color-text-muted); font-size:11px; }
+  .water-records-table td[data-label] > * { grid-column:2; }
+}
+
+.water-overview-intro { max-width:78ch; margin:18px 0 24px; }
+.water-overview-intro > p:first-child { font-size:18px; font-weight:600; margin:0 0 7px; }
+.water-overview-intro p { margin:6px 0; }
+.water-group-description { max-width:82ch; margin:-4px 0 14px; font-size:12px; }
+.water-local-context { margin:0; font-size:12px; font-weight:600; line-height:1.5; }
+.water-companion { padding:12px; border-left:3px solid var(--color-separator); background:var(--color-bg); font-size:12px; }
+.water-companion p { margin:5px 0; }
+.water-limitation { font-size:11px; color:var(--color-text-muted); line-height:1.5; }
+.water-dataset header { display:flex; justify-content:space-between; gap:8px; align-items:start; }
+.water-dialog dd { overflow-wrap:anywhere; }
+
+.water-revision-ids { max-width: 28rem; overflow-wrap: anywhere; }

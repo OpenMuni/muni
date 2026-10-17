@@ -1,0 +1,3 @@
+<% if Muni::Water.enabled? && Muni::Water::HALLS.include?(@hall&.slug) %>
+  <a class="topbar__link" href="/water/charles">Charles River ↗</a>
+<% end %>

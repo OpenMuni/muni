@@ -1,0 +1,7 @@
+<section class="water-notice" aria-label="Advisory coverage">
+  <strong>Official advisory coverage is incomplete</strong>
+  <p>These sources cannot establish that advisories are absent or that water contact is safe. Check current notices from local health authorities.</p>
+  <template x-for="row in warnings()" :key="row.external_id"><p><button class="water-text-button" @click="inspect(row)" x-text="warningLabel(row)"></button></p></template>
+  <p class="muted" x-show="!warnings().length">No active advisory or program override is retained here; coverage remains incomplete.</p>
+  <a class="water-text-button" href="https://www.mass.gov/info-details/cyanobacteria-and-recreational-freshwater" target="_blank" rel="noopener">Massachusetts guidance and local contacts ↗</a>
+</section>

@@ -1,0 +1,77 @@
+# Optional reverse proxy. Terminate TLS at your own edge before this HTTP listener.
+# MUNI_WEB_UPSTREAM selects the local Puma listener.
+{
+	# TLS termination is the operator's responsibility.
+	auto_https off
+	servers {
+		protocols h1 h2
+	}
+}
+
+:8080 {
+	encode zstd gzip
+
+	# Health check endpoint for the proxy process itself. Application health
+	# stays on /healthz and is reverse-proxied to Sinatra below.
+	handle /proxy-healthz {
+		respond "ok" 200
+	}
+
+	# Static assets and byte ranges do not occupy Ruby threads or SQLite slots.
+	@assets path /css/* /js/* /icons/* /fonts/*
+	handle @assets {
+		root * /app/www/public
+		header Cache-Control "public, max-age=3600"
+		file_server
+	}
+
+	handle_path /tiles/* {
+		root * {$MUNI_TILES_PATH:/data/tiles}
+		header Cache-Control "public, max-age=86400, immutable"
+		@pmtiles path *.pmtiles
+		header @pmtiles Content-Type application/vnd.pmtiles
+		file_server
+	}
+
+	# Development/emergency raster fallback. Production should use the
+	# self-hosted /tiles/muni.pmtiles path unless an explicit hosted provider
+	# contract is configured.
+	handle_path /basemap/light/* {
+		rewrite * /light_all{path}
+		reverse_proxy https://basemaps.cartocdn.com {
+			header_up Host basemaps.cartocdn.com
+			header_up Referer {$MUNI_PUBLIC_BASE_URL:http://localhost:8080}
+			header_up User-Agent "Muni self-hosted basemap proxy"
+		}
+		header Cache-Control "public, max-age=86400"
+		header Access-Control-Allow-Origin "*"
+	}
+
+	# Server-Sent Events: disable buffering and bump the read timeout.
+	@stream path /stream/*
+	handle @stream {
+		reverse_proxy {$MUNI_WEB_UPSTREAM:127.0.0.1:4567} {
+			flush_interval -1
+			transport http {
+				read_timeout 24h
+			}
+		}
+	}
+
+	# Everything else goes to the Sinatra app.
+	handle {
+		reverse_proxy {$MUNI_WEB_UPSTREAM:127.0.0.1:4567}
+	}
+
+	log {
+		output stderr
+		format json
+	}
+
+	# Standard hardening headers; enable HSTS at your TLS edge.
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		-Server
+	}
+}

@@ -1,0 +1,629 @@
+<div
+  class="shell shell--dashboard native-app"
+  x-data="muniDashboard({ hall: '<%= @hall.slug %>' })"
+  x-init="init()">
+  <header class="topbar ui-material native-chrome">
+    <%= erb :_municipality_selector, layout: false %>
+    <nav class="topbar__nav" aria-label="Site">
+      <%= erb :_water_region_link, layout: false %>
+      <a class="topbar__link" href="/about?hall=<%= @hall.slug %>">About</a>
+    </nav>
+  </header>
+
+  <main class="shell__body dashboard-shell__body">
+    <nav class="rail native-sidebar" aria-label="Apps">
+      <div class="rail__primary">
+        <%= erb :_app_rail, layout: false, locals: { current_app: :trends } %>
+        <%= erb :_category_rail, layout: false %>
+      </div>
+    </nav>
+
+    <section class="dashboard-workspace native-dashboard">
+      <header class="dashboard-head">
+        <div>
+          <h1>Trends</h1>
+          <p>Official records, trend windows, and collector freshness. Open a chart to inspect the rows behind it.</p>
+        </div>
+      </header>
+
+      <section class="civic-signals" x-show="!loading && signals().length > 0" x-cloak aria-labelledby="civic-signals-title">
+        <header class="civic-signals__head">
+          <div>
+            <h2 id="civic-signals-title">Civic Signals</h2>
+          </div>
+          <span class="muted" x-text="signalsFreshness()"></span>
+        </header>
+        <div class="civic-signals__grid">
+          <template x-for="signal in signals()" :key="signal.id">
+            <article class="civic-signal ui-panel" :class="`civic-signal--${signalTone(signal)}`">
+              <div class="civic-signal__body">
+                <div class="civic-signal__eyebrow">
+                  <span x-text="signal.title"></span>
+                  <strong x-text="signalValue(signal)"></strong>
+                </div>
+                <h3 x-text="signal.headline"></h3>
+                <p x-text="signal.detail"></p>
+                <div class="civic-signal__meta">
+                  <span x-text="signalMeta(signal)"></span>
+                  <a :href="signalPath(signal)" x-show="signal.category">View</a>
+                </div>
+              </div>
+            </article>
+          </template>
+        </div>
+      </section>
+
+      <div class="dashboard-grid" x-show="!loading" x-cloak>
+        <section class="metric-panel metric-panel--wide ui-panel">
+          <header>
+            <h2>311</h2>
+            <span class="muted" x-text="trendScope(widget('service_requests').opened_trend)"></span>
+          </header>
+          <div class="trend-pair">
+            <a
+              class="trend-widget trend-widget--amber trend-widget--link"
+              href="/?hall=<%= @hall.slug %>&category=service_requests&time_range=14d&time_field=opened_at"
+              aria-label="Open 311 records behind opened trend">
+              <div class="trend-widget__meta">
+                <span>Opened</span>
+                <strong x-text="num(sumTrend(widget('service_requests').opened_trend))"></strong>
+              </div>
+              <div class="trend-chart" role="img" :aria-label="trendLabel('311 opened', widget('service_requests').opened_trend)">
+                <div class="trend-chart__bars" aria-hidden="true">
+                  <template x-for="point in widget('service_requests').opened_trend || []" :key="point.date">
+                    <span :title="`${point.label}: ${num(point.value)}`" :style="`--bar: ${barPercent(point, widget('service_requests').opened_trend)}%`"></span>
+                  </template>
+                </div>
+                <svg class="trend-chart__line" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+                  <polyline :points="trendPoints(widget('service_requests').opened_trend)"></polyline>
+                </svg>
+              </div>
+            </a>
+            <a
+              class="trend-widget trend-widget--green trend-widget--link"
+              href="/?hall=<%= @hall.slug %>&category=service_requests&time_range=14d&time_field=closed_at"
+              aria-label="Open 311 records behind closed trend">
+              <div class="trend-widget__meta">
+                <span>Closed</span>
+                <strong x-text="num(sumTrend(widget('service_requests').closed_trend))"></strong>
+              </div>
+              <div class="trend-chart" role="img" :aria-label="trendLabel('311 closed', widget('service_requests').closed_trend)">
+                <div class="trend-chart__bars" aria-hidden="true">
+                  <template x-for="point in widget('service_requests').closed_trend || []" :key="point.date">
+                    <span :title="`${point.label}: ${num(point.value)}`" :style="`--bar: ${barPercent(point, widget('service_requests').closed_trend)}%`"></span>
+                  </template>
+                </div>
+                <svg class="trend-chart__line" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+                  <polyline :points="trendPoints(widget('service_requests').closed_trend)"></polyline>
+                </svg>
+              </div>
+            </a>
+          </div>
+          <div class="metric-foot">
+            <span><strong x-text="num(widget('service_requests').open_cases)"></strong> open</span>
+            <span><strong x-text="duration(widget('service_requests').median_close_seconds)"></strong> median close</span>
+          </div>
+          <p class="metric-note muted">Source-covered event days; missing pipeline days are hidden.</p>
+          <ol class="metric-list metric-list--compact">
+            <template x-for="item in take(widget('service_requests').aging_open || [], 3)" :key="`${item.department}:${item.case_type}`">
+              <li>
+                <span x-text="`${item.department} / ${item.case_type}`"></span>
+                <strong x-text="`${item.count} open`"></strong>
+              </li>
+            </template>
+          </ol>
+        </section>
+
+        <section class="metric-panel metric-panel--wide ui-panel">
+          <header>
+            <h2>311 Resolution</h2>
+            <span class="muted" x-text="trendScope(widget('service_requests').resolution_trend)"></span>
+          </header>
+          <a
+            class="trend-widget trend-widget--ink trend-widget--link"
+            href="/?hall=<%= @hall.slug %>&category=service_requests&time_range=30d&time_field=closed_at"
+            aria-label="Open closed 311 records behind resolution trend">
+            <div class="trend-widget__meta">
+              <span>Rolling median close time</span>
+              <strong x-text="duration(lastTrendValue(widget('service_requests').resolution_trend))"></strong>
+            </div>
+            <div class="trend-chart" role="img" :aria-label="trendLabel('311 resolution time', widget('service_requests').resolution_trend, 'duration')">
+              <div class="trend-chart__bars" aria-hidden="true">
+                <template x-for="point in widget('service_requests').resolution_trend || []" :key="point.date">
+                  <span :title="`${point.label}: ${trendValueLabel(point, 'duration')}`" :style="`--bar: ${barPercent(point, widget('service_requests').resolution_trend)}%`"></span>
+                </template>
+              </div>
+              <svg class="trend-chart__line" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+                <polyline :points="trendPoints(widget('service_requests').resolution_trend)"></polyline>
+              </svg>
+            </div>
+          </a>
+          <div class="metric-foot">
+            <span><strong x-text="duration(widget('service_requests').avg_close_seconds)"></strong> average close</span>
+            <span><strong x-text="num(widget('service_requests').stale_open_cases)"></strong> open over 30d</span>
+          </div>
+          <p class="metric-note muted">Inferred inside the source-covered closure window.</p>
+        </section>
+
+        <section class="metric-panel metric-panel--kpi ui-panel">
+          <header>
+            <h2>311 ETA</h2>
+            <span class="muted" x-text="analyticsScope(analytics('service_requests'))"></span>
+          </header>
+          <div class="metric-kpi">
+            <strong x-text="days(analytics('service_requests').median_days)"></strong>
+            <span>typical close</span>
+          </div>
+          <div class="metric-foot">
+            <span><strong x-text="days(analytics('service_requests').low_days)"></strong> low</span>
+            <span><strong x-text="days(analytics('service_requests').high_days)"></strong> high</span>
+            <span><strong x-text="num(analytics('service_requests').sample_size)"></strong> samples</span>
+          </div>
+          <p class="metric-note muted">Advisory estimate from closed 311 history.</p>
+        </section>
+
+        <section class="metric-panel metric-panel--kpi ui-panel">
+          <header>
+            <h2>Permit ETA</h2>
+            <span class="muted" x-text="analyticsScope(analytics('permits'))"></span>
+          </header>
+          <div class="metric-kpi">
+            <strong x-text="days(analytics('permits').median_days)"></strong>
+            <span>typical issue</span>
+          </div>
+          <div class="metric-foot">
+            <span><strong x-text="days(analytics('permits').low_days)"></strong> low</span>
+            <span><strong x-text="days(analytics('permits').high_days)"></strong> high</span>
+            <span><strong x-text="num(analytics('permits').sample_size)"></strong> samples</span>
+          </div>
+          <p class="metric-note muted">Advisory estimate from issued permit history.</p>
+        </section>
+
+        <section class="metric-panel metric-panel--wide ui-panel">
+          <header>
+            <h2>Safety</h2>
+            <span class="muted" x-text="analyticsScope(analytics('safety_hotspots'))"></span>
+          </header>
+          <a
+            class="trend-widget trend-widget--rose trend-widget--link"
+            href="/?hall=<%= @hall.slug %>&category=safety&time_range=latest"
+            aria-label="Open safety overview records">
+            <div class="trend-widget__meta">
+              <span>Latest 30d records</span>
+              <strong x-text="num((widget('safety').crime_reports_30d || 0) + (widget('safety').dispatch_calls_30d || 0) + (widget('safety').recent_crashes_30d || 0))"></strong>
+            </div>
+            <div class="metric-foot">
+              <span><strong x-text="num(widget('safety').crime_reports_30d)"></strong> crime</span>
+              <span><strong x-text="num(widget('safety').dispatch_calls_30d)"></strong> dispatch</span>
+              <span><strong x-text="num(widget('safety').recent_crashes_30d)"></strong> collisions</span>
+            </div>
+          </a>
+          <ol class="mini-bars mini-bars--rose">
+            <template x-for="item in take(scoreRows(analytics('safety_hotspots').locations || []), 4)" :key="item.key">
+              <li :style="`--share: ${sharePercent(item, scoreRows(analytics('safety_hotspots').locations || []))}%`">
+                <span x-text="item.label"></span>
+                <strong x-text="riskTierLabel(item.score)"></strong>
+              </li>
+            </template>
+          </ol>
+          <p class="metric-note muted">Fire/police dispatch excludes EMS; locations can be approximate.</p>
+        </section>
+
+        <section class="metric-panel metric-panel--wide ui-panel">
+          <header>
+            <h2>Traffic Trend</h2>
+            <span class="muted" x-text="trendScope(widget('traffic_volume').trend)"></span>
+          </header>
+          <div class="trend-widget trend-widget--teal">
+            <div class="trend-widget__meta">
+              <span x-text="widget('traffic_volume').label || 'Observed intersection'"></span>
+              <strong x-text="num(sumTrend(widget('traffic_volume').trend))"></strong>
+            </div>
+            <div class="trend-chart" role="img" :aria-label="trendLabel('Traffic volume', widget('traffic_volume').trend)">
+              <div class="trend-chart__bars" aria-hidden="true">
+                <template x-for="point in widget('traffic_volume').trend || []" :key="point.date">
+                  <span :title="`${point.label}: ${num(point.value)}`" :style="`--bar: ${barPercent(point, widget('traffic_volume').trend)}%`"></span>
+                </template>
+              </div>
+              <svg class="trend-chart__line" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+                <polyline :points="trendPoints(widget('traffic_volume').trend)"></polyline>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-foot">
+            <span><strong x-text="num(widget('traffic_volume').total_30d)"></strong> 30d vehicles</span>
+            <span><strong x-text="num(widget('traffic_volume').observed_sites)"></strong> observed sites</span>
+            <span><strong x-text="duration(widget('traffic_volume').data_lag_seconds)"></strong> data age</span>
+          </div>
+          <div class="heat-grid heat-grid--week" role="img" aria-label="Traffic weekday heat">
+            <template x-for="item in widget('traffic_volume').weekday_heat || []" :key="item.label">
+              <span :title="`${item.label}: ${num(item.count)}`" :style="`--heat-alpha: ${heatAlpha(item, widget('traffic_volume').weekday_heat)}`">
+                <em x-text="item.label"></em>
+                <strong x-text="num(item.count)"></strong>
+              </span>
+            </template>
+          </div>
+          <ol class="mini-bars mini-bars--teal">
+            <template x-for="item in take(widget('traffic_volume').by_class || [], 4)" :key="item.name">
+              <li :style="`--share: ${sharePercent(item, widget('traffic_volume').by_class)}%`">
+                <span x-text="item.name"></span>
+                <strong x-text="num(item.count)"></strong>
+              </li>
+            </template>
+          </ol>
+          <p class="metric-note muted">Representative sensor trend from key intersections; not citywide traffic coverage.</p>
+        </section>
+
+        <section class="metric-panel metric-panel--wide ui-panel">
+          <header>
+            <h2>Bike Activity</h2>
+            <span class="muted" x-text="trendScope(widget('bicycle_counts').trend)"></span>
+          </header>
+          <div class="trend-widget trend-widget--green">
+            <div class="trend-widget__meta">
+              <span x-text="widget('bicycle_counts').label || 'Observed bike count site'"></span>
+              <strong x-text="num(sumTrend(widget('bicycle_counts').trend))"></strong>
+            </div>
+            <div class="trend-chart" role="img" :aria-label="trendLabel('Bicycle activity', widget('bicycle_counts').trend)">
+              <div class="trend-chart__bars" aria-hidden="true">
+                <template x-for="point in widget('bicycle_counts').trend || []" :key="point.date">
+                  <span :title="`${point.label}: ${num(point.value)}`" :style="`--bar: ${barPercent(point, widget('bicycle_counts').trend)}%`"></span>
+                </template>
+              </div>
+              <svg class="trend-chart__line" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+                <polyline :points="trendPoints(widget('bicycle_counts').trend)"></polyline>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-foot">
+            <span><strong x-text="num(widget('bicycle_counts').total_30d)"></strong> 30d bikes</span>
+            <span><strong x-text="num(widget('bicycle_counts').observed_sites)"></strong> observed sites</span>
+            <span><strong x-text="duration(widget('bicycle_counts').data_lag_seconds)"></strong> data age</span>
+          </div>
+          <div class="heat-grid heat-grid--hours" role="img" aria-label="Bicycle hour heat">
+            <template x-for="item in widget('bicycle_counts').hour_heat || []" :key="item.label">
+              <span :title="`${item.label}: ${num(item.count)}`" :style="`--heat-alpha: ${heatAlpha(item, widget('bicycle_counts').hour_heat)}`">
+                <em x-text="item.label"></em>
+              </span>
+            </template>
+          </div>
+          <ol class="mini-bars mini-bars--green">
+            <template x-for="item in take(widget('bicycle_counts').by_movement || [], 4)" :key="item.name">
+              <li :style="`--share: ${sharePercent(item, widget('bicycle_counts').by_movement)}%`">
+                <span x-text="item.name"></span>
+                <strong x-text="num(item.count)"></strong>
+              </li>
+            </template>
+          </ol>
+          <p class="metric-note muted">Representative count-site activity; useful for pattern reading, not full network volume.</p>
+        </section>
+
+        <section class="metric-panel metric-panel--wide ui-panel">
+          <header>
+            <h2>Pedestrian Volume</h2>
+            <span class="muted" x-text="trendScope(widget('pedestrian_counts').trend)"></span>
+          </header>
+          <div class="trend-widget trend-widget--blue">
+            <div class="trend-widget__meta">
+              <span x-text="widget('pedestrian_counts').label || 'Observed pedestrian count site'"></span>
+              <strong x-text="num(sumTrend(widget('pedestrian_counts').trend))"></strong>
+            </div>
+            <div class="trend-chart" role="img" :aria-label="trendLabel('Pedestrian volume', widget('pedestrian_counts').trend)">
+              <div class="trend-chart__bars" aria-hidden="true">
+                <template x-for="point in widget('pedestrian_counts').trend || []" :key="point.date">
+                  <span :title="`${point.label}: ${num(point.value)}`" :style="`--bar: ${barPercent(point, widget('pedestrian_counts').trend)}%`"></span>
+                </template>
+              </div>
+              <svg class="trend-chart__line" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+                <polyline :points="trendPoints(widget('pedestrian_counts').trend)"></polyline>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-foot">
+            <span><strong x-text="num(widget('pedestrian_counts').total_30d)"></strong> 30d pedestrians</span>
+            <span><strong x-text="num(widget('pedestrian_counts').observed_sites)"></strong> observed sites</span>
+            <span><strong x-text="duration(widget('pedestrian_counts').data_lag_seconds)"></strong> data age</span>
+          </div>
+          <div class="heat-grid heat-grid--week" role="img" aria-label="Pedestrian weekday heat">
+            <template x-for="item in widget('pedestrian_counts').weekday_heat || []" :key="item.label">
+              <span :title="`${item.label}: ${num(item.count)}`" :style="`--heat-alpha: ${heatAlpha(item, widget('pedestrian_counts').weekday_heat)}`">
+                <em x-text="item.label"></em>
+                <strong x-text="num(item.count)"></strong>
+              </span>
+            </template>
+          </div>
+          <ol class="mini-bars mini-bars--blue">
+            <template x-for="item in take(widget('pedestrian_counts').by_intersection || [], 4)" :key="item.name">
+              <li :style="`--share: ${sharePercent(item, widget('pedestrian_counts').by_intersection)}%`">
+                <span x-text="item.name"></span>
+                <strong x-text="num(item.count)"></strong>
+              </li>
+            </template>
+          </ol>
+          <p class="metric-note muted">Representative pedestrian count sites; the feed supports volume and timing, not full city coverage.</p>
+        </section>
+
+        <section class="metric-panel ui-panel">
+          <header>
+            <h2>Police log</h2>
+            <span class="muted" x-text="trendScope(widget('police').trend)"></span>
+          </header>
+          <a
+            class="trend-widget trend-widget--blue trend-widget--link"
+            href="/?hall=<%= @hall.slug %>&category=police&time_range=14d"
+            aria-label="Open police log records behind report trend">
+            <div class="trend-widget__meta">
+              <span>Published rows</span>
+              <strong x-text="num(sumTrend(widget('police').trend))"></strong>
+            </div>
+            <div class="trend-chart" role="img" :aria-label="trendLabel('Police log rows', widget('police').trend)">
+              <div class="trend-chart__bars" aria-hidden="true">
+                <template x-for="point in widget('police').trend || []" :key="point.date">
+                  <span :title="`${point.label}: ${num(point.value)}`" :style="`--bar: ${barPercent(point, widget('police').trend)}%`"></span>
+                </template>
+              </div>
+              <svg class="trend-chart__line" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+                <polyline :points="trendPoints(widget('police').trend)"></polyline>
+              </svg>
+            </div>
+          </a>
+          <div class="metric-foot">
+            <span><strong x-text="duration(widget('police').median_report_lag_seconds)"></strong> median report lag</span>
+          </div>
+          <ol class="mini-bars">
+            <template x-for="item in take(widget('police').by_type || [], 4)" :key="item.name">
+              <li :style="`--share: ${sharePercent(item, widget('police').by_type)}%`">
+                <span x-text="item.name"></span>
+                <strong x-text="num(item.count)"></strong>
+              </li>
+            </template>
+          </ol>
+          <p class="metric-note muted">Published log trend, not citywide crime rate or live dispatch.</p>
+        </section>
+
+        <section class="metric-panel ui-panel">
+          <header>
+            <h2>Permits</h2>
+            <span class="muted" x-text="trendScope(widget('permits').trend)"></span>
+          </header>
+          <a
+            class="trend-widget trend-widget--purple trend-widget--link"
+            href="/?hall=<%= @hall.slug %>&category=permits&time_range=30d"
+            aria-label="Open permit records behind issue trend">
+            <div class="trend-widget__meta">
+              <span>Issued</span>
+              <strong x-text="num(sumTrend(widget('permits').trend))"></strong>
+            </div>
+            <div class="trend-chart" role="img" :aria-label="trendLabel('Permits issued', widget('permits').trend)">
+              <div class="trend-chart__bars" aria-hidden="true">
+                <template x-for="point in widget('permits').trend || []" :key="point.date">
+                  <span :title="`${point.label}: ${num(point.value)}`" :style="`--bar: ${barPercent(point, widget('permits').trend)}%`"></span>
+                </template>
+              </div>
+              <svg class="trend-chart__line" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+                <polyline :points="trendPoints(widget('permits').trend)"></polyline>
+              </svg>
+            </div>
+          </a>
+          <div class="metric-foot">
+            <span><strong x-text="duration(lastTrendValue(widget('permits').issue_lag_trend))"></strong> issue lag</span>
+          </div>
+          <ol class="mini-bars mini-bars--purple">
+            <template x-for="item in take(widget('permits').by_status || [], 4)" :key="item.name">
+              <li :style="`--share: ${sharePercent(item, widget('permits').by_status)}%`">
+                <span x-text="item.name"></span>
+                <strong x-text="num(item.count)"></strong>
+              </li>
+            </template>
+          </ol>
+        </section>
+
+        <section class="metric-panel ui-panel">
+          <header>
+            <h2>Collisions</h2>
+            <span class="muted">8 weeks</span>
+          </header>
+          <a
+            class="trend-widget trend-widget--rose trend-widget--link"
+            href="/?hall=<%= @hall.slug %>&category=crashes&time_range=90d"
+            aria-label="Open collision records behind collision trend">
+            <div class="trend-widget__meta">
+              <span>Collisions per week</span>
+              <strong x-text="num(sumTrend(widget('crashes').trend))"></strong>
+            </div>
+            <div class="trend-chart" role="img" :aria-label="trendLabel('Collisions', widget('crashes').trend)">
+              <div class="trend-chart__bars" aria-hidden="true">
+                <template x-for="point in widget('crashes').trend || []" :key="point.date">
+                  <span :title="`${point.label}: ${num(point.value)}`" :style="`--bar: ${barPercent(point, widget('crashes').trend)}%`"></span>
+                </template>
+              </div>
+              <svg class="trend-chart__line" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+                <polyline :points="trendPoints(widget('crashes').trend)"></polyline>
+              </svg>
+            </div>
+          </a>
+          <div class="metric-foot">
+            <span><strong x-text="num(widget('crashes').injury_latest_window)"></strong> injury</span>
+            <span><strong x-text="num(widget('crashes').cyclist_or_pedestrian_latest_window)"></strong> bike/ped</span>
+            <span><strong x-text="duration(widget('crashes').latest_data_lag_seconds)"></strong> data age</span>
+          </div>
+          <p class="metric-note muted">Official collision dataset is delayed; this is a safety trend, not a live incident feed.</p>
+        </section>
+
+        <section class="metric-panel metric-panel--wide ui-panel">
+          <header>
+            <h2>Crash Risk</h2>
+            <span class="muted" x-text="analyticsScope(analytics('crash_risks'))"></span>
+          </header>
+          <ol class="mini-bars mini-bars--rose">
+            <template x-for="item in take(scoreRows(analytics('crash_risks').locations || []), 5)" :key="item.key">
+              <li :style="`--share: ${sharePercent(item, scoreRows(analytics('crash_risks').locations || []))}%`">
+                <span x-text="item.label"></span>
+                <strong x-text="riskTierLabel(item.score)"></strong>
+              </li>
+            </template>
+          </ol>
+          <p class="metric-note muted" x-text="riskNote()"></p>
+        </section>
+
+        <section class="metric-panel metric-panel--wide metric-panel--compact ui-panel">
+          <header>
+            <h2>311 Anomalies</h2>
+            <span class="muted" x-text="analyticsScope(analytics('service_request_anomalies'))"></span>
+          </header>
+          <ol class="metric-list metric-list--compact" x-show="(analytics('service_request_anomalies').anomalies || []).length > 0">
+            <template x-for="item in take(analytics('service_request_anomalies').anomalies || [], 5)" :key="item.case_type">
+              <li>
+                <span x-text="item.case_type"></span>
+                <strong x-text="`${num(item.current_count)} / ${num(item.baseline_count)} normal`"></strong>
+              </li>
+            </template>
+          </ol>
+          <p class="metric-note muted" x-text="anomalyNote()"></p>
+        </section>
+
+        <section class="metric-panel metric-panel--wide ui-panel">
+          <header>
+            <h2>Tree Inventory</h2>
+            <span class="muted">Inventory</span>
+          </header>
+          <div class="metric-strip metric-strip--compact">
+            <div>
+              <strong x-text="num(widget('trees').current_tree_records ?? widget('trees').total_trees)"></strong>
+              <span>current tree records</span>
+            </div>
+            <div>
+              <strong x-text="num(widget('trees').total_inventory_records || widget('trees').total_trees)"></strong>
+              <span>inventory records/sites</span>
+            </div>
+            <div>
+              <strong x-text="num(widget('trees').species_count)"></strong>
+              <span>current species names</span>
+            </div>
+          </div>
+          <ol class="mini-bars mini-bars--teal">
+            <template x-for="item in take(widget('trees').by_condition || [], 5)" :key="item.name">
+              <li :style="`--share: ${sharePercent(item, widget('trees').by_condition)}%`">
+                <span x-text="item.name"></span>
+                <strong x-text="num(item.count)"></strong>
+              </li>
+            </template>
+          </ol>
+          <p class="metric-note muted">Maintained street-tree and planting-site inventory; not a full city canopy census.</p>
+        </section>
+
+        <section class="metric-panel metric-panel--wide ui-panel">
+          <header>
+            <h2>Tree Plantings</h2>
+            <span class="muted" x-text="trendScope(widget('trees').planting_trend)"></span>
+          </header>
+          <div class="trend-widget trend-widget--green">
+            <div class="trend-widget__meta">
+              <span>Known planting dates by year</span>
+              <strong x-text="num(sumTrend(widget('trees').planting_trend))"></strong>
+            </div>
+            <div class="trend-chart" role="img" :aria-label="trendLabel('Tree plantings', widget('trees').planting_trend)">
+              <div class="trend-chart__bars" aria-hidden="true">
+                <template x-for="point in widget('trees').planting_trend || []" :key="point.date">
+                  <span :title="`${point.label}: ${num(point.value)}`" :style="`--bar: ${barPercent(point, widget('trees').planting_trend)}%`"></span>
+                </template>
+              </div>
+              <svg class="trend-chart__line" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+                <polyline :points="trendPoints(widget('trees').planting_trend)"></polyline>
+              </svg>
+            </div>
+          </div>
+          <div class="metric-foot">
+            <span><strong x-text="num(widget('trees').planting_record_count)"></strong> records with plant dates</span>
+            <span><strong x-text="num(widget('trees').current_tree_records)"></strong> current records</span>
+          </div>
+          <ol class="mini-bars mini-bars--green">
+            <template x-for="item in take(widget('trees').by_species || [], 6)" :key="item.name">
+              <li :style="`--share: ${sharePercent(item, widget('trees').by_species)}%`">
+                <span x-text="item.name"></span>
+                <strong x-text="num(item.count)"></strong>
+              </li>
+            </template>
+          </ol>
+          <p class="metric-note muted">Planting trend omits rows without plant dates; species mix counts current tree records.</p>
+        </section>
+
+        <section class="metric-panel metric-panel--wide ui-panel">
+          <header>
+            <h2>Evidence Trail</h2>
+            <span class="muted">Collection</span>
+          </header>
+          <ol class="source-list">
+            <template x-for="source in featuredSources()" :key="source.source">
+              <li>
+                <div>
+                  <strong x-text="source.label"></strong>
+                  <span x-text="sourceFreshness(source)"></span>
+                </div>
+                <p x-text="source.note"></p>
+                <a :href="evidencePath(source.category)">Records</a>
+              </li>
+            </template>
+          </ol>
+        </section>
+      </div>
+
+      <% skeleton_bars = [38, 62, 48, 76, 44, 56, 70, 52] %>
+      <% skeleton_panels = [
+        { classes: 'metric-panel--wide', kind: 'trend' },
+        { classes: 'metric-panel--wide', kind: 'trend' },
+        { classes: 'metric-panel--kpi', kind: 'kpi' },
+        { classes: 'metric-panel--kpi', kind: 'kpi' },
+        { classes: 'metric-panel--wide', kind: 'trend' },
+        { classes: 'metric-panel--wide', kind: 'trend' },
+        { classes: 'metric-panel--wide', kind: 'trend' },
+        { classes: 'metric-panel--wide', kind: 'trend' },
+        { classes: '', kind: 'list' },
+        { classes: '', kind: 'list' },
+        { classes: '', kind: 'list' },
+        { classes: 'metric-panel--wide', kind: 'trend' },
+        { classes: 'metric-panel--wide metric-panel--compact', kind: 'list' },
+        { classes: 'metric-panel--wide', kind: 'trend' },
+        { classes: 'metric-panel--wide', kind: 'trend' },
+        { classes: 'metric-panel--wide', kind: 'list' }
+      ] %>
+      <div class="dashboard-grid dashboard-grid--skeleton" x-show="loading" role="status" aria-label="Loading trends">
+        <% skeleton_panels.each do |panel| %>
+          <section class="metric-panel metric-panel--skeleton <%= panel[:classes] %>">
+            <header class="skeleton-head">
+              <span class="skeleton-line skeleton-line--title"></span>
+              <span class="skeleton-line skeleton-line--meta"></span>
+            </header>
+            <% if panel[:kind] == 'kpi' %>
+              <div class="skeleton-kpi-value"></div>
+              <div class="skeleton-row skeleton-row--thirds">
+                <span class="skeleton-line"></span>
+                <span class="skeleton-line"></span>
+                <span class="skeleton-line"></span>
+              </div>
+            <% elsif panel[:kind] == 'list' %>
+              <div class="skeleton-list">
+                <span class="skeleton-line skeleton-line--long"></span>
+                <span class="skeleton-line"></span>
+                <span class="skeleton-line skeleton-line--short"></span>
+                <span class="skeleton-line skeleton-line--long"></span>
+              </div>
+            <% else %>
+              <div class="skeleton-chart" aria-hidden="true">
+                <div class="skeleton-bars">
+                  <% skeleton_bars.each do |height| %>
+                    <span style="--bar: <%= height %>%"></span>
+                  <% end %>
+                </div>
+              </div>
+              <div class="skeleton-row">
+                <span class="skeleton-line"></span>
+                <span class="skeleton-line skeleton-line--short"></span>
+              </div>
+            <% end %>
+          </section>
+        <% end %>
+      </div>
+    </section>
+  </main>
+</div>

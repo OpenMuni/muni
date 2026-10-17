@@ -1,0 +1,98 @@
+<% water_asset_version = %w[css/water.css js/water.js js/water-charts.js].map { |path| File.mtime(File.join(settings.public_folder, path)).to_i }.max %>
+<link rel="stylesheet" href="/css/water.css?v=<%= water_asset_version %>">
+<script src="/js/water-charts.js?v=<%= water_asset_version %>"></script>
+<script src="/js/water.js?v=<%= water_asset_version %>"></script>
+<div class="shell native-app water-shell" x-data="muniWater()">
+  <header class="topbar ui-material native-chrome">
+    <%= erb :_municipality_selector, layout: false %>
+  </header>
+  <main class="shell__body" :class="{ 'water-map-layout': view === 'map' }">
+    <nav class="rail native-sidebar" aria-label="Charles River views"><div class="rail__primary">
+      <%= erb :_water_rail, layout: false %>
+    </div></nav>
+    <%= erb :_water_map, layout: false %>
+    <section class="dashboard-workspace water-workspace" x-show="view !== 'map'">
+      <header class="dashboard-head"><h1 x-text="viewTitle()"><%= @water_view == 'metrics' ? 'Charles River' : @water_view.capitalize %></h1><span class="muted">Lower Charles</span><button type="button" class="ui-button water-refresh" x-show="view === 'metrics'" @click="refreshReadings()" :disabled="loading">Refresh</button></header>
+      <p role="status" x-show="loading">Loading…</p>
+      <p role="alert" class="water-notice" x-show="error" x-text="error" x-cloak></p>
+      <div x-show="!loading" x-cloak>
+        <div x-show="view !== 'datasets'"><%= erb :_water_advisories, layout: false %></div>
+        <div class="water-filters ui-toolbar" x-show="view !== 'datasets'">
+          <label>Reach<select x-model="reach" @change="selectReach()"><option value="">All reaches</option>
+            <template x-for="r in ['2','3','4','5']"><option :value="r" x-text="'CRWA reach ' + r"></option></template>
+          </select></label>
+          <label>Location<select x-ref="locationSelect" x-model="location" @change="selectLocation()"><option value="">All locations</option>
+            <template x-for="loc in sortedLocations()" :key="loc.id"><option :value="loc.id" x-text="loc.name"></option></template>
+          </select></label>
+          <label><span x-text="view === 'metrics' ? 'History' : 'Period'">Period</span><select x-model="days" @change="changePeriod()"><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option><option value="365">365 days</option><option value="custom">Custom dates</option></select></label>
+          <template x-if="days === 'custom'"><div class="water-custom-range">
+            <label>From<input type="date" x-model="fromDate"></label><label>Through<input type="date" x-model="toDate"></label><button class="ui-button" @click="refresh()">Apply</button>
+          </div></template>
+          <span class="muted water-timezone">Eastern time</span>
+        </div>
+
+        <section x-show="view === 'metrics'" aria-label="River overview">
+          <div class="water-overview-intro"><p>What do the available measurements tell us?</p><p class="muted">One local buoy, an upstream gauge, dated samples and selected public notices. Each result keeps its location, date and limitations. There is no river-wide average or health score.</p><p class="muted" x-show="!periodExplicit">Continuous history: 30 days · Laboratory samples: past year</p></div>
+          <p class="muted" x-show="!metricGroups().length">No measurements for this location.</p>
+          <template x-for="group in metricGroups()" :key="group.title"><section class="water-metric-section" :aria-label="group.title">
+            <h2 x-text="group.title"></h2><p class="water-group-description muted" x-text="group.description"></p>
+            <div class="dashboard-grid water-metric-grid">
+              <template x-for="dataset in group.datasets" :key="dataset.id"><%= erb :_water_metric_card, layout: false %></template>
+            </div>
+          </section></template>
+          <section class="civic-signals water-changes" x-show="signals.length"><header class="civic-signals__head"><h2>Changes in period</h2><button class="water-text-button" @click="recordType='changes';recordSource='';recordParameter='';recordUnit='';changeView('records')">All changes</button></header>
+            <div class="civic-signals__grid"><template x-for="signal in signals" :key="signal.id"><article class="civic-signal ui-panel"><div class="civic-signal__body">
+              <h3 x-text="signalTitle(signal)"></h3><p x-text="signalWindow(signal)"></p><p x-text="signal.payload.explanation"></p><button class="water-text-button" @click="inspectSignal(signal)">Evidence</button>
+            </div></article></template></div>
+          </section>
+        </section>
+
+        <section x-show="view === 'records'" aria-label="Records">
+          <div class="water-filters ui-toolbar">
+            <label>View<select x-model="recordPresentation" @change="loadRecords()"><option value="observations">Observations</option><option value="publications">Source publications</option></select></label>
+            <label>Record type<select x-model="recordType" @change="changeRecordType()"><option value="measurements">Measurements</option><option value="laboratory">Lab samples</option><option value="predictions">Predictions</option><option value="discharges">Discharge notices</option><option value="changes">Changes</option><option value="states">Program states</option></select></label>
+            <label>Source<select x-ref="sourceSelect" x-model="recordSource" @change="recordParameter='';recordUnit='';recordMethod='';loadRecords()"><option value="">All sources</option><template x-for="dataset in datasets.filter(d=>recordType==='changes' || d.type===recordType)" :key="dataset.id"><option :value="dataset.source" x-text="dataset.title"></option></template></select></label>
+            <button class="ui-button" x-show="recordParameter" @click="recordParameter='';recordUnit='';recordMethod='';loadRecords()" x-text="label(recordParameter) + ' ×'" aria-label="Clear measurement filter"></button>
+            <button class="ui-button" @click="downloadCsv()" :disabled="exporting" x-show="recordType!=='changes'" x-text="exporting ? 'Exporting…' : 'Export CSV'"></button>
+          </div>
+          <p class="muted" x-show="recordPresentation==='observations'">Repeated publications are grouped only when their source identity supports it. Samples with unresolved identity remain separate.</p>
+          <p class="muted" x-show="recordPresentation==='publications'">All source publications, including repeated representations and quality-control samples. Publication counts are not independent sample counts.</p>
+          <p class="water-notice" x-show="recordType==='discharges'">BWSC and MassDEP coverage incomplete.</p>
+          <p class="muted" x-show="recordType==='states'">Latest observed states · source issuance times unavailable</p>
+          <p role="status" x-show="recordsLoading">Loading records…</p>
+          <p x-show="!recordsLoading && !records.length">No records in checked sources for this selection.</p>
+          <div class="water-table-wrap" x-show="records.length"><table class="water-records-table">
+            <thead><tr><th x-text="recordType==='changes' ? 'Period' : recordType==='states' ? 'Retrieved' : 'Observed'"></th><th>Location</th><th x-text="recordType==='discharges' ? 'Operator' : recordType==='changes' ? 'Signal' : 'Measurement'"></th><th x-text="recordType==='discharges' ? 'Reported volume' : 'Value'"></th><th>Source</th><th>Status</th><th>Details</th></tr></thead>
+            <tbody><template x-for="row in records" :key="row.external_id || row.id"><tr>
+              <td data-label="Time" x-text="recordType==='changes' ? signalWindow(row) : recordType==='states' ? stamp(row.fetched_at) : observationStamp(row)"></td>
+              <td data-label="Location" x-text="locationName(row.location_id || row.payload.selector?.location_id || row.payload.after?.location_id)"></td>
+              <td :data-label="recordType==='discharges' ? 'Operator' : recordType==='changes' ? 'Signal' : 'Measurement'" x-text="recordType==='discharges' ? row.payload.operator : recordType==='changes' ? signalTitle(row) : label(row.parameter || row.kind)"></td>
+              <td data-label="Value" x-text="recordType==='discharges' ? dischargeValue(row) : recordType==='changes' ? (row.payload.direction || '—') : value(row) + ' ' + unit(row.unit)"></td>
+              <td data-label="Source" x-text="sourceName(row.source_slug || row.payload.source_slug)"></td><td data-label="Status"><span x-text="row.kind==='laboratory' ? eligibilityLabel(row) : label(row.status)"></span><span class="water-source-status muted" x-show="(row.publication_count || row.payload?.publication_count) > 1" x-text="(row.publication_count || row.payload?.publication_count) + ' source publications'"></span></td>
+              <td><button class="ui-button" @click="recordType==='changes' ? inspectSignal(row) : inspect(row)">Evidence</button></td>
+            </tr></template></tbody>
+          </table></div>
+          <div class="water-pagination" x-show="recordsTotal && !recordsLoading"><span x-text="(recordsOffset+1) + '–' + (recordsOffset+records.length) + ' of ' + recordsTotal.toLocaleString()"></span><button class="ui-button" :disabled="!recordsOffset" @click="loadRecords(Math.max(0,recordsOffset-50))">Previous</button><button class="ui-button" :disabled="recordsNext===null" @click="loadRecords(recordsNext)">Next</button></div>
+          <details x-show="recordType==='discharges'"><summary>Cleanup documents</summary><ul><template x-for="doc in data.documents || []"><li><a :href="doc.url" x-text="doc.title" target="_blank" rel="noopener"></a></li></template></ul></details>
+        </section>
+
+        <section x-show="view === 'datasets'" aria-label="Datasets">
+          <p class="muted" x-text="'Monitoring since ' + stamp(data.methodology?.monitoring_start)"></p><p class="muted">Checked means Muni contacted the source. Publisher changed means the source reported an update. Observation history describes when the water was measured; these times can differ. Retained record counts include source publications and do not count independent samples.</p>
+          <div class="water-table-wrap"><table class="water-records-table water-datasets-table"><thead><tr><th>Source</th><th>Records retained</th><th>Check schedule</th><th>Freshness / collection</th><th>Observation history</th><th>Checked / publisher changed</th><th>Data</th></tr></thead><tbody>
+            <template x-for="source in data.source_coverage || []" :key="source.id"><tr>
+              <td data-label="Source"><a :href="source.source_url || source.url" x-text="source.label" target="_blank" rel="noopener"></a></td>
+              <td data-label="Records retained" x-text="source.records == null ? '—' : source.records.toLocaleString()"></td>
+              <td data-label="Check schedule"><span x-text="cadence(source.cadence_seconds)"></span><span class="water-source-status muted" x-show="source.publication_cadence" x-text="source.publication_cadence"></span><span class="water-source-status muted" x-show="source.next_check_at" x-text="'Next check: ' + stamp(source.next_check_at)"></span><span class="water-source-status muted" x-show="source.collection_delay_seconds != null" x-text="'Last collector start delay: ' + duration(source.collection_delay_seconds)"></span><span class="water-source-status muted" x-show="editionInterval(source)" x-text="editionInterval(source)"></span></td>
+              <td data-label="Status"><div><span x-text="label(source.status)"></span><span class="water-source-status muted" x-show="source.collection_status" x-text="label(source.collection_status)"></span><span class="water-source-status muted" x-show="source.presentation_enabled === false">Public data views paused</span></div></td>
+              <td data-label="History"><div><span x-text="source.oldest_observation_date || (source.oldest_observation_at ? stamp(source.oldest_observation_at) : 'Date not supplied')"></span><span class="water-source-status muted" x-show="source.newest_observation_at || source.newest_observation_date" x-text="'to ' + (source.newest_observation_date || stamp(source.newest_observation_at))"></span></div></td>
+              <td data-label="Check / change"><span x-text="'Checked: ' + stamp(source.last_checked_at || source.last_success_at)"></span><span class="water-source-status muted" x-text="'Publisher changed: ' + stamp(source.publisher_changed_at || source.last_modified_at)"></span><span class="water-source-status muted" x-show="source.observed_editions?.basis === 'first_observed_body_change' && source.observed_editions?.changed_at" x-text="'First observed body change: ' + stamp(source.observed_editions?.changed_at)"></span><span class="water-source-status muted" x-show="source.phases?.published_at" x-text="'Published locally: ' + stamp(source.phases?.published_at)"></span><span class="water-source-status muted" x-show="source.processing_status" x-text="'Processing: ' + label(source.processing_status)"></span><span class="water-source-status muted" x-show="source.last_run_records != null" x-text="'Last run: ' + source.last_run_records + ' records processed · ' + source.last_run_changes + ' changed'"></span><span class="water-source-status muted" x-show="source.calculation_backlog" x-text="source.calculation_backlog + ' calculation jobs unfinished'"></span></td>
+              <td><button class="ui-button" x-show="source.source_slug" @click="openSourceRecords(source)">Records</button></td>
+            </tr></template>
+          </tbody></table></div>
+          <details class="water-sources"><summary>Methodology</summary><template x-for="key in ['history','gaps','shifts','retention','interpretation']"><p x-text="data.methodology?.[key]"></p></template></details>
+        </section>
+      </div>
+    </section>
+    <%= erb :_water_evidence_dialogs, layout: false %>
+  </main>
+</div>

@@ -1,0 +1,4 @@
+Map ID,CSO Number,Outfall Location,Potentially Affected Area,Start Time,Stop Time,Duration,Volume (million gallons),Volume 3-Year Average (million gallons),Event Rainfall (inches)
+A,MWR201,Example Charles River outfall,Charles River,06/17/2026 10:00 AM,06/17/2026 10:30 AM,30 m,0.2 Treated,0.3 Treated,0.4
+B,MWR018,Example Charles River outfall,Charles River,06/18/2026 11:00 AM,06/18/2026 11:20 AM,20 m,0.1 Treated,0.2 Treated,0.3
+C,SOM007A,Example other river outfall,Mystic River,06/19/2026 12:00 PM,06/19/2026 12:20 PM,20 m,0.1 Treated,0.2 Treated,0.3

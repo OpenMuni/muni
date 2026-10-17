@@ -1,0 +1,65 @@
+<% section_icons = {
+     '311' => 'rss',
+     'Safety' => 'caution',
+     'Mobility' => 'route',
+     'Parking' => 'parking',
+     'Housing & Development' => 'buildings',
+     'Food Trucks' => 'truck',
+     'Events' => 'calendar',
+     'Environment' => 'leaf',
+     'Money & Government' => 'landmark',
+     'Meetings' => 'landmark'
+   } %>
+<% @categories.group_by(&:section).each do |section, categories| %>
+  <% primary = categories.first %>
+  <% category_by_slug = categories.each_with_object({}) { |cat, out| out[cat.slug.to_s] = cat } %>
+  <% nav_items = categories.map do |cat|
+       {
+         title: categories.length > 1 && cat == primary ? 'All' : cat.title,
+         icon: cat.icon,
+         url: "/?hall=#{@hall.slug}&category=#{cat.slug}",
+         disabled: false
+       }
+     end %>
+  <% if section == 'Safety' %>
+    <% nav_items = [] %>
+    <% if (cat = category_by_slug['safety']) %>
+      <% nav_items << { title: 'All', icon: cat.icon, url: "/?hall=#{@hall.slug}&category=#{cat.slug}", disabled: false } %>
+    <% end %>
+    <% if (cat = category_by_slug['police']) %>
+      <% nav_items << { title: 'Police', icon: cat.icon, url: "/?hall=#{@hall.slug}&category=#{cat.slug}", disabled: false } %>
+    <% end %>
+    <% if category_by_slug['dispatch_calls'] %>
+      <% nav_items << { title: 'Fire', icon: 'flame', url: "/?hall=#{@hall.slug}&category=dispatch_calls&agency=Fire", disabled: false } %>
+    <% end %>
+    <% %w[crime_reports dispatch_calls crashes].each do |slug| %>
+      <% next unless (cat = category_by_slug[slug]) %>
+      <% nav_items << { title: cat.title, icon: cat.icon, url: "/?hall=#{@hall.slug}&category=#{cat.slug}", disabled: false } %>
+    <% end %>
+  <% end %>
+  <div class="rail__bundle<%= ' has-subnav' if nav_items.length > 1 %>">
+    <a
+      class="rail__btn rail__bundle-btn rail__btn--link"
+      href="/?hall=<%= @hall.slug %>&category=<%= primary.slug %>"
+      title="<%= section %>"
+      aria-label="<%= section %>">
+      <span class="rail__section-icon" data-icon="<%= section_icons.fetch(section, 'dashboard') %>" aria-hidden="true"></span>
+      <span class="rail__label"><%= section %></span>
+    </a>
+    <% if nav_items.length > 1 %>
+      <div class="rail__subdrawer" role="menu" aria-label="<%= section %> categories">
+        <% nav_items.each do |item| %>
+          <a
+            class="rail__sub-btn rail__btn--link<%= ' is-disabled' if item[:disabled] %>"
+            href="<%= item[:url] %>"
+            title="<%= item[:title] %>"
+            aria-label="<%= item[:title] %>"
+            role="menuitem">
+            <span class="rail__icon" data-icon="<%= item[:icon] %>" aria-hidden="true"></span>
+            <span class="rail__sub-label"><%= item[:title] %></span>
+          </a>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+<% end %>

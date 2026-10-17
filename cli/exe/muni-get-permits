@@ -1,0 +1,6 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'muni/cli/get_launcher'
+
+Muni::CLI::Get::Launcher.run!(:permits)

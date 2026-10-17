@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# Bootstrap a local Muni.fyi checkout.
+set -euo pipefail
+
+cd "$(dirname "$0")"
+root="$PWD"
+
+required_ruby="$(tr -d '[:space:]' < .ruby-version)"
+actual_ruby="$(ruby -e 'print RUBY_VERSION')"
+
+if [[ "$actual_ruby" != "$required_ruby"* ]]; then
+  echo "WARN: Ruby $actual_ruby is active; repo expects $required_ruby." >&2
+fi
+
+if ! command -v bundle >/dev/null 2>&1; then
+  echo "==> Installing Bundler"
+  gem install bundler
+fi
+
+bundle_path="${BUNDLE_PATH:-vendor/bundle}"
+bundle_bin="${BUNDLE_BIN:-.bundle/bin}"
+export BUNDLE_PATH="$bundle_path"
+export BUNDLE_BIN="$bundle_bin"
+
+mkdir -p .bundle "$bundle_bin"
+bundle config set --local path "$bundle_path"
+bundle config set --local bin "$bundle_bin"
+
+echo "==> Installing root gems"
+if bundle check >/dev/null 2>&1; then
+  echo "    root bundle already satisfied"
+else
+  bundle install
+fi
+
+if [[ "${MUNI_SETUP_SUB_BUNDLES:-0}" == "1" ]]; then
+  for sub in core cli www; do
+    if [[ -f "$sub/Gemfile" ]]; then
+      echo "==> Installing $sub gems"
+      (
+        cd "$sub"
+        export BUNDLE_PATH="../$bundle_path"
+        export BUNDLE_BIN="../$bundle_bin"
+        if bundle check >/dev/null 2>&1; then
+          echo "    $sub bundle already satisfied"
+        else
+          bundle install
+        fi
+      )
+    fi
+  done
+else
+  echo "==> Sub-gems are path-included by the root bundle"
+  echo "    set MUNI_SETUP_SUB_BUNDLES=1 to install each sub-gem bundle too"
+fi
+
+echo "==> Preparing local data directories"
+mkdir -p data/db data/tiles tmp/dev .muni/bin
+
+muni_get_commands=(311 police permits crashes trees parks food-trucks)
+wrapper_sources=(cli/exe/muni)
+for command in "${muni_get_commands[@]}"; do
+  wrapper_sources+=("cli/exe/muni-get-$command")
+done
+
+echo "==> Removing stale local muni-get wrappers"
+find .muni/bin -maxdepth 1 -type f -name 'muni-get-*' -delete
+
+echo "==> Installing local Muni CLI wrappers in .muni/bin"
+for exe in "${wrapper_sources[@]}"; do
+  name="$(basename "$exe")"
+  target=".muni/bin/$name"
+  cat > "$target" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$root"
+exec bundle exec ruby "cli/exe/$name" "\$@"
+EOF
+  chmod +x "$target"
+done
+
+echo "==> Verifying SQLite support"
+bundle exec ruby -e 'require "sqlite3"; require "sequel"; puts "SQLite #{SQLite3::SQLITE_VERSION}"'
+
+echo "==> Migrating local SQLite store"
+bundle exec ruby cli/exe/muni data migrate --json >/dev/null
+
+echo "==> Checking Muni CLI"
+.muni/bin/muni --version
+
+cat <<'EOF'
+
+Local setup complete.
+
+Use:
+  export PATH="$PWD/.muni/bin:$PATH"
+  ./dev
+
+Data lives in:
+  data/db/muni.sqlite3
+EOF

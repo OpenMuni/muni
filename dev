@@ -1,0 +1,241 @@
+#!/usr/bin/env bash
+# Run the full local Muni.fyi stack: collectors, backend scheduler, and UI.
+set -euo pipefail
+
+cd "$(dirname "$0")"
+
+port="${MUNI_DEV_PORT:-4567}"
+bind="${MUNI_DEV_BIND:-127.0.0.1}"
+collect="${MUNI_DEV_COLLECT:-1}"
+beats="${MUNI_DEV_BEATS:-1}"
+require_collect="${MUNI_DEV_REQUIRE_COLLECT:-0}"
+auto_port="${MUNI_DEV_AUTO_PORT:-1}"
+hall_setting="${MUNI_DEV_HALLS:-${MUNI_PUBLIC_HALLS:-}}"
+
+usage() {
+  cat <<'EOF'
+Usage: ./dev [options]
+
+Options:
+  --port PORT       Web port. Default: 4567
+  --bind HOST       Bind host. Default: 127.0.0.1
+  --strict-port     Fail instead of choosing the next free port when busy.
+  --no-collect      Skip the one-time collection seed for every local Hall.
+  --no-beats        Skip the recurring backend scheduler.
+  -h, --help        Show this help.
+
+Useful env:
+  MUNI_DEV_HALLS=cambridge,boston
+  MUNI_DEV_AUTO_PORT=0
+  MUNI_DEV_REQUIRE_COLLECT=1
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --port)
+      port="${2:?missing port}"
+      shift 2
+      ;;
+    --port=*)
+      port="${1#--port=}"
+      shift
+      ;;
+    --bind)
+      bind="${2:?missing bind host}"
+      shift 2
+      ;;
+    --bind=*)
+      bind="${1#--bind=}"
+      shift
+      ;;
+    --no-collect)
+      collect=0
+      shift
+      ;;
+    --no-beats)
+      beats=0
+      shift
+      ;;
+    --strict-port)
+      auto_port=0
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "unknown option: $1" >&2
+      usage >&2
+      exit 64
+      ;;
+  esac
+done
+
+if ! bundle check >/dev/null 2>&1; then
+  echo "Dependencies are not installed. Run ./setup first." >&2
+  exit 1
+fi
+
+mkdir -p data/db data/tiles tmp/dev
+
+muni=(bundle exec ruby cli/exe/muni)
+if [[ -x .muni/bin/muni ]]; then
+  muni=(./.muni/bin/muni)
+fi
+
+port_available() {
+  ruby -rsocket -e 'server = TCPServer.new(ARGV[0], Integer(ARGV[1])); server.close' "$1" "$2" >/dev/null 2>&1
+}
+
+validate_port() {
+  [[ "$1" =~ ^[0-9]+$ ]] && (( "$1" >= 1 && "$1" <= 65535 ))
+}
+
+resolve_port() {
+  local preferred="$1"
+  local candidate="$preferred"
+  local last=$((preferred + 20))
+
+  if (( last > 65535 )); then
+    last=65535
+  fi
+
+  if port_available "$bind" "$candidate"; then
+    echo "$candidate"
+    return 0
+  fi
+
+  if [[ "$auto_port" != "1" ]]; then
+    echo "ERROR: $bind:$candidate is already in use." >&2
+    echo "       Stop the existing server, pass --port PORT, or allow auto-port selection." >&2
+    return 1
+  fi
+
+  while (( candidate < last )); do
+    candidate=$((candidate + 1))
+    if port_available "$bind" "$candidate"; then
+      echo "WARN: $bind:$preferred is in use; using $candidate instead." >&2
+      echo "$candidate"
+      return 0
+    fi
+  done
+
+  echo "ERROR: no free port found from $preferred to $last on $bind." >&2
+  return 1
+}
+
+if ! validate_port "$port"; then
+  echo "ERROR: invalid port: $port" >&2
+  exit 64
+fi
+
+port="$(resolve_port "$port")"
+
+echo "==> Migrating SQLite store"
+"${muni[@]}" data migrate --json >/dev/null
+
+"${muni[@]}" halls list --json >tmp/dev/halls.json
+hall_lines="$(ruby -rjson -e '
+  available = JSON.parse(File.read(ARGV.fetch(0))).map { |hall| hall.fetch("slug") }
+  requested = ARGV.fetch(1).split(",").map(&:strip).reject(&:empty?)
+  requested = available if requested.empty?
+  unknown = requested - available
+  abort "unknown MUNI_DEV_HALLS: #{unknown.join(",")}" unless unknown.empty?
+  puts requested.uniq
+' tmp/dev/halls.json "$hall_setting")" || exit 64
+
+dev_halls=()
+while IFS= read -r hall; do
+  [[ -n "$hall" ]] && dev_halls+=("$hall")
+done <<<"$hall_lines"
+
+if [[ "${#dev_halls[@]}" -eq 0 ]]; then
+  echo "ERROR: no local Halls are enabled." >&2
+  exit 64
+fi
+
+run_hall_seed() {
+  local hall="$1"
+  local out="tmp/dev/muni-seed-$hall.json"
+
+  echo "==> Initial collection for $hall"
+  if ! "${muni[@]}" beats seed --hall="$hall" --json >"$out"; then
+    return 1
+  fi
+
+  ruby -rjson -e '
+    body = JSON.parse(File.read(ARGV.fetch(0)))
+    failures = body.fetch("results").select { |row| row["error"] }
+    count = body.fetch("counts").values.sum
+    puts format("    beats=%d rows=%d failures=%d", body.fetch("results").length, count, failures.length)
+    failures.each { |row| warn format("    %s: %s", row.fetch("slug"), row.fetch("error")) }
+    exit 1 unless failures.empty?
+  ' "$out"
+}
+
+if [[ "$collect" == "1" ]]; then
+  collect_failed=0
+  for hall in "${dev_halls[@]}"; do
+    run_hall_seed "$hall" || collect_failed=1
+  done
+  if [[ "${MUNI_WATER_ENABLED:-0}" == "1" ]]; then
+    echo "==> Seeding shared Charles River evidence"
+    "${muni[@]}" beats seed --waterbody=charles --json >tmp/dev/muni-seed-water.json || collect_failed=1
+  fi
+
+  if [[ "$collect_failed" == "1" ]]; then
+    echo "WARN: one or more Hall seeds failed; see tmp/dev/muni-seed-*.json" >&2
+    if [[ "$require_collect" == "1" ]]; then
+      exit 1
+    fi
+  fi
+else
+  echo "==> Skipping one-time collection"
+fi
+
+pids=()
+
+shutdown() {
+  for pid in "${pids[@]:-}"; do
+    kill -TERM "$pid" 2>/dev/null || true
+  done
+}
+trap shutdown INT TERM EXIT
+
+monitor() {
+  local pid
+  local status
+
+  while :; do
+    for pid in "${pids[@]}"; do
+      if ! kill -0 "$pid" 2>/dev/null; then
+        status=0
+        wait "$pid" || status=$?
+        return "$status"
+      fi
+    done
+    sleep 1
+  done
+}
+
+if [[ "$beats" == "1" ]]; then
+  echo "==> Starting backend scheduler"
+  "${muni[@]}" beats serve &
+  pids+=("$!")
+else
+  echo "==> Skipping backend scheduler"
+fi
+
+echo "==> Starting Muni.fyi UI"
+for hall in "${dev_halls[@]}"; do
+  echo "    http://$bind:$port/?hall=$hall"
+done
+"${muni[@]}" serve --bind="$bind" --port="$port" &
+pids+=("$!")
+
+monitor
+status=$?
+shutdown
+exit "$status"

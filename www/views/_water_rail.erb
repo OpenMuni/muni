@@ -1,0 +1,11 @@
+<% [['metrics', 'Metrics', 'dashboard'], ['map', 'Map', 'waves'], ['records', 'Records', 'table'], ['datasets', 'Datasets', 'database']].each do |id, label, icon| %>
+  <a class="rail__btn rail__btn--link<%= ' is-active' if @water_view == id %>"
+     :class="{ 'is-active': view === '<%= id %>' }"
+     href="/water/charles?view=<%= id %>" :href="viewUrl('<%= id %>')"
+     title="<%= label %>" aria-label="<%= label %>"
+     <%= 'aria-current="page"' if @water_view == id %> :aria-current="view === '<%= id %>' ? 'page' : null"
+     @click.prevent="changeView('<%= id %>')">
+    <span class="rail__icon" data-icon="<%= icon %>" aria-hidden="true"></span>
+    <span class="rail__label"><%= label %></span>
+  </a>
+<% end %>

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Pull a Protomaps PMTiles slice for the union bbox of all configured Halls.
+# Use bin/deploy-tiles to upload the result to the Fly volume and verify it.
+#
+# Requires `pmtiles` (https://docs.protomaps.com/pmtiles/cli). Install via:
+#   brew install protomaps/tap/pmtiles  (mac)
+#   go install github.com/protomaps/go-pmtiles/cmd/pmtiles@latest  (linux)
+#
+# Override the source PMTiles via PROTOMAPS_URL (defaults to the public
+# planet build hosted by Protomaps).
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+PROTOMAPS_URL="${PROTOMAPS_URL:-https://build.protomaps.com/20260101.pmtiles}"
+TILES_DIR="${MUNI_TILES_PATH:-data/tiles}"
+OUT="${TILES_DIR}/muni.pmtiles"
+
+if ! command -v pmtiles >/dev/null; then
+  echo "pmtiles CLI not installed; see header of $0 for install instructions" >&2
+  exit 1
+fi
+
+mkdir -p "$TILES_DIR"
+
+# Union of all Hall bboxes. core/halls/*.yml each carry a `hall.bbox: [w,s,e,n]`.
+HALLS_DIR="${MUNI_HALLS_DIR:-core/halls}"
+BBOX=$(MUNI_HALLS_DIR="$HALLS_DIR" ruby -ryaml -e '
+  west, south = Float::INFINITY, Float::INFINITY
+  east, north = -Float::INFINITY, -Float::INFINITY
+  paths = Dir[File.join(ENV.fetch("MUNI_HALLS_DIR"), "*.yml")]
+  abort "no hall YAML files found" if paths.empty?
+  paths.each do |f|
+    bb = YAML.load_file(f).fetch("hall").fetch("bbox")
+    west, south = [west, bb[0]].min, [south, bb[1]].min
+    east, north = [east, bb[2]].max, [north, bb[3]].max
+  end
+  puts [west, south, east, north].join(",")
+')
+
+echo "==> Extracting $BBOX from $PROTOMAPS_URL -> $OUT"
+pmtiles extract "$PROTOMAPS_URL" "$OUT" --bbox="$BBOX" --maxzoom=15
+
+echo "==> Wrote $(du -h "$OUT" | cut -f1) to $OUT"

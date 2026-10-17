@@ -1,0 +1,42 @@
+<article class="metric-panel ui-panel water-dataset" :aria-label="dataset.title">
+  <header><h3 x-text="dataset.title"></h3><span class="row__pill" x-text="metricStatus(dataset)"></span></header>
+  <template x-if="choices(dataset).length > 1"><label class="water-series-label">Location and measurement
+    <select x-model="dataset.choice" @change="loadChart(dataset)" :aria-label="dataset.title + ' location and measurement'">
+      <template x-for="row in choices(dataset)" :key="row.external_id"><option :value="row.external_id" x-text="choiceLabel(row)"></option></template>
+    </select>
+  </label></template>
+  <p class="water-local-context" x-text="coverageLabel(dataset)"></p>
+  <div class="metric-kpi"><strong x-text="summaryValue(dataset)"></strong><span x-text="summaryUnit(dataset)"></span></div>
+  <p class="metric-note" x-show="dataset.type === 'laboratory'" x-text="eligibilityLabel(choice(dataset))"></p>
+  <p class="metric-note" x-show="selectionExplanation(dataset)" x-text="selectionExplanation(dataset)"></p>
+  <p class="metric-note muted" x-text="choiceStatus(dataset)"></p>
+  <p class="metric-note muted" x-show="metricContext(dataset)" x-text="metricContext(dataset)"></p>
+  <template x-if="qualifiedCompanion(dataset)"><div class="water-companion"><strong>Newer publication with qualifications</strong><p x-text="companionLabel(qualifiedCompanion(dataset))"></p><p class="muted" x-text="eligibilityLabel(qualifiedCompanion(dataset))"></p><button class="water-text-button" @click="inspect(qualifiedCompanion(dataset))">Publication evidence</button></div></template>
+  <template x-if="companion(dataset)"><div class="water-companion">
+    <strong>Confirmed routine sample</strong>
+    <p x-text="companionLabel(companion(dataset))"></p>
+    <p class="muted" x-text="sourceName(companion(dataset).source_slug) + ' · shown separately; methods and units may differ'"></p>
+    <button class="water-text-button" @click="inspect(companion(dataset))">Sample evidence</button>
+  </div></template>
+  <template x-if="companionCandidates(dataset).length"><div class="water-companion">
+    <strong>Routine results on the latest confirmed sample date</strong>
+    <p class="muted">Multiple distinct results; no single result is preferred.</p>
+    <template x-for="row in companionCandidates(dataset)" :key="row.external_id"><p><span x-text="companionLabel(row)"></span> <button class="water-text-button" @click="inspect(row)">Sample evidence</button></p></template>
+  </div></template>
+  <div class="trend-widget trend-widget--green" x-show="chartHasData(dataset) && !dataset.loading">
+    <div class="water-chart" :id="'water-chart-' + dataset.id" role="img" :aria-label="dataset.title + ' · ' + chartLabel(dataset)"></div>
+    <p class="metric-note muted" x-text="chartLabel(dataset)"></p>
+  </div>
+  <p class="metric-note muted" role="status" x-show="dataset.loading">Loading history…</p>
+  <p class="metric-note muted" x-show="['measurements','laboratory','predictions'].includes(dataset.type) && !dataset.loading && !dataset.error && !chartHasData(dataset)" x-text="chartEmptyLabel(dataset)"></p>
+  <p class="metric-note" role="status" x-show="dataset.error" x-text="dataset.error"></p>
+  <p class="metric-note muted" x-show="dataset.type === 'discharges' && dataset.result?.record_count === 0">No published notices found for this selection. Operator coverage is incomplete.</p>
+  <p class="metric-note muted" x-show="dataset.type === 'discharges' && snapshot(dataset).needs_review" x-text="snapshot(dataset).needs_review + ' notices excluded pending review (source history)'"></p>
+  <p class="metric-note muted" x-show="status(dataset).collection_status === 'collection_interrupted'">Collection interrupted · current availability unknown</p>
+  <p class="metric-note water-limitation" x-show="metricLimitation(dataset)" x-text="metricLimitation(dataset)"></p>
+  <div class="water-panel-actions"><button type="button" class="water-text-button" @click="openRecords(dataset)">Observations</button><button type="button" class="water-text-button" x-show="choice(dataset) && dataset.type !== 'states'" @click="inspect(choice(dataset))">Source evidence</button></div>
+  <details x-show="chartHasData(dataset)"><summary>Chart data and coverage</summary><div class="water-table-wrap"><table>
+    <thead><tr><th>Date</th><th>Value</th><th>Unit</th><th>Coverage</th><th>Method</th><th>Evidence</th></tr></thead>
+    <tbody><template x-for="(point,index) in chartRows(dataset)" :key="index"><tr><td x-text="chartStamp(point,dataset)"></td><td x-text="value(point)"></td><td x-text="unit(point.unit)"></td><td x-text="(point.coverage == null ? 'Not applicable' : Math.round(point.coverage*100) + '%') + (point.partial ? ' · partial period' : '')"></td><td x-text="[point.method,point.segment].filter(Boolean).join(' · ') || 'Not supplied'"></td><td><button class="water-text-button" x-show="point.external_id" @click="inspect(point)">Source evidence</button><details x-show="!point.external_id"><summary x-text="point.input_revision_ids?.length ? point.input_revision_ids.length + ' input revisions' : 'Calculation details'"></summary><p x-text="pointProvenance(point,dataset)"></p><p class="water-revision-ids" x-text="point.input_revision_ids?.length ? 'Revision IDs: ' + point.input_revision_ids.join(', ') : 'No retained input revision IDs.'"></p></details></td></tr></template></tbody>
+  </table></div></details>
+</article>

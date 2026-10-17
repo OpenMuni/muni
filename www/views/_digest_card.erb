@@ -1,0 +1,56 @@
+<% card_ref = lead ? 'leadCard()' : 'card' %>
+<div class="digest-card__top">
+  <span x-text="<%= card_ref %>.section"></span>
+  <strong x-text="sourceChip(<%= card_ref %>)"></strong>
+</div>
+<h2 x-text="<%= card_ref %>.title"></h2>
+<p x-text="<%= card_ref %>.summary"></p>
+
+<div class="digest-card__visual" x-show="showVisual(<%= card_ref %>)" aria-hidden="true">
+  <template x-if="visualType(<%= card_ref %>, 'sparkline')">
+    <div class="digest-sparkline">
+      <div class="digest-sparkline__bars">
+        <template x-for="point in visualPoints(<%= card_ref %>)" :key="`${<%= card_ref %>.id}:${point.date || point.label}`">
+          <span :style="`--bar: ${sparkBar(point, visualPoints(<%= card_ref %>))}%`"></span>
+        </template>
+      </div>
+      <svg viewBox="0 0 100 34" preserveAspectRatio="none">
+        <polyline :points="sparkPoints(visualPoints(<%= card_ref %>))"></polyline>
+      </svg>
+    </div>
+  </template>
+
+  <template x-if="visualType(<%= card_ref %>, 'stat_strip')">
+    <div class="digest-stat-strip">
+      <template x-for="stat in visualStats(<%= card_ref %>)" :key="`${<%= card_ref %>.id}:${stat.label}`">
+        <div>
+          <strong x-text="stat.value"></strong>
+          <span x-text="stat.label"></span>
+        </div>
+      </template>
+    </div>
+  </template>
+
+  <template x-if="visualType(<%= card_ref %>, 'rank_bar')">
+    <div class="digest-rank-bars">
+      <template x-for="item in visualItems(<%= card_ref %>)" :key="`${<%= card_ref %>.id}:${item.label}`">
+        <div :style="`--share: ${item.share || 0}%`">
+          <span x-text="item.label"></span>
+          <strong x-text="item.value"></strong>
+        </div>
+      </template>
+    </div>
+  </template>
+
+  <template x-if="visualType(<%= card_ref %>, 'delta_badge') || visualBadge(<%= card_ref %>)">
+    <div class="digest-delta" :class="`digest-delta--${visualBadge(<%= card_ref %>)?.direction || 'steady'}`">
+      <strong x-text="(visualBadge(<%= card_ref %>) || <%= card_ref %>.visual).value"></strong>
+      <span x-text="(visualBadge(<%= card_ref %>) || <%= card_ref %>.visual).label"></span>
+    </div>
+  </template>
+</div>
+
+<div class="digest-card__meta">
+  <span x-show="cardSourceName(<%= card_ref %>)" x-text="cardSourceName(<%= card_ref %>)"></span>
+  <time x-show="cardDate(<%= card_ref %>)" x-text="cardDate(<%= card_ref %>)"></time>
+</div>

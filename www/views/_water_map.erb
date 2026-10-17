@@ -1,0 +1,78 @@
+<section id="water-location-list" class="list-pane native-pane water-location-list"
+         x-show="view === 'map'" :class="{ 'is-open': mobileListOpen }" aria-label="Locations" x-cloak>
+  <header class="list-pane__head">
+    <h2>Locations</h2>
+    <div class="list-pane__tools ui-toolbar">
+      <span class="muted" x-text="loading ? 'Loading…' : mapRows().length + ' items'"></span>
+      <button type="button" class="filter-toggle ui-button ui-button--toolbar" :class="{ 'is-active': mapFilterOpen || reach }"
+              :aria-expanded="mapFilterOpen" aria-controls="water-map-filters" @click="mapFilterOpen = !mapFilterOpen">
+        Filter<span class="filter-toggle__count" x-show="reach">1</span>
+      </button>
+    </div>
+  </header>
+  <ul class="list-pane__rows" x-ref="mapListRows">
+    <template x-for="place in mapRows()" :key="place.id">
+      <li class="row ui-list-row" :class="{ 'is-active': location === place.id, 'is-hovered': hoveredLocation === place.id }"
+          role="button" tabindex="0" :aria-pressed="location === place.id" :aria-label="place.name"
+          :data-water-row="place.id" @click="selectMapLocation(place.id)" @keydown.enter.prevent="selectMapLocation(place.id)"
+          @keydown.space.prevent="selectMapLocation(place.id)" @mouseenter="hoverMapLocation(place.id)" @mouseleave="hoverMapLocation(null)">
+        <span class="row__dot" aria-hidden="true"></span>
+        <div class="row__body">
+          <div class="row__title" x-text="place.name" :title="place.name"></div>
+          <div class="row__sub muted" x-text="locationKind(place)"></div>
+          <div class="row__meta">
+            <span class="row__pill" x-show="place.reach_id" x-text="'Reach ' + place.reach_id"></span>
+            <span class="row__pill" x-show="place.geometry?.type !== 'Point'" x-text="place.kind === 'reach' ? 'Reach summary' : 'Coordinates unverified'"></span>
+          </div>
+        </div>
+      </li>
+    </template>
+    <li class="row row--empty ui-list-row" x-show="!loading && !mapRows().length" x-text="error || 'No locations in this reach.'"></li>
+  </ul>
+</section>
+
+<div id="water-map-filters" class="filter-popover ui-popover" x-show="view === 'map' && mapFilterOpen" x-cloak
+     @click.outside="mapFilterOpen = false" @keydown.escape.stop.prevent="mapFilterOpen = false" role="dialog" aria-label="Map filters">
+  <div class="filter-popover__head"><strong>Filters</strong><button type="button" class="filter-popover__clear ui-button ui-button--toolbar" @click="reach='';selectReach()" x-show="reach">Reset</button></div>
+  <div class="filter-popover__body"><div class="filter-group"><span class="filter-group__label">Reach</span><div class="filter-group__options">
+    <button type="button" class="filter-chip ui-chip" :class="{ 'is-active': !reach }" :aria-pressed="!reach" @click="reach='';selectReach()">All reaches</button>
+    <template x-for="id in ['2','3','4','5']" :key="id"><button type="button" class="filter-chip ui-chip" :class="{ 'is-active': reach === id }" :aria-pressed="reach === id" @click="reach=id;selectReach()" x-text="'CRWA reach ' + id"></button></template>
+  </div></div></div>
+</div>
+
+<section class="body-pane native-map water-map-pane" x-show="view === 'map'" aria-label="Map" @keydown.escape="clearMapSelection()" x-cloak>
+  <h1 class="sr-only">Charles River map</h1>
+  <div id="water-map" class="body-pane__map" :class="{ 'map--light': !window.MUNI_MAPTILER_KEY }" aria-label="Charles River locations"></div>
+  <div class="water-map-notices" x-show="!loading"><%= erb :_water_advisories, layout: false %></div>
+  <div class="map-empty" x-show="loading" role="status">Loading…</div>
+  <div class="map-error" x-show="mapError || error" role="alert" x-cloak><div class="map-error__panel">
+    <strong>Map unavailable</strong><p class="muted" x-text="mapError || error"></p>
+    <button type="button" class="ui-button ui-button--toolbar" x-show="mapError" @click="retryMap()">Retry</button>
+  </div></div>
+  <button type="button" class="mobile-list-toggle ui-button" @click="toggleMobileList()" :aria-expanded="mobileListOpen" aria-controls="water-location-list">
+    <span x-text="mobileListOpen ? 'Hide list' : 'Show list'"></span>
+  </button>
+  <aside class="detail" x-show="selectedPlace()" aria-label="Location details" x-cloak>
+    <header class="detail__head">
+      <div class="detail__title"><h3 x-text="selectedPlace()?.name"></h3><div class="detail__summary"><span class="row__pill" x-text="locationKind(selectedPlace())"></span><span class="row__pill" x-show="selectedPlace()?.reach_id" x-text="'Reach ' + selectedPlace()?.reach_id"></span></div></div>
+      <button type="button" class="detail__close ui-icon-button" @click="clearMapSelection()" aria-label="Hide details" title="Hide details">✕</button>
+    </header>
+    <div class="detail__props">
+      <p class="water-notice">Official advisory coverage is incomplete. These records do not establish that water contact is safe.</p>
+      <p class="muted" x-show="selectedPlace()?.kind !== 'reach' && selectedPlace()?.geometry?.type !== 'Point'">Coordinates unverified · not mapped</p>
+      <dl class="water-location-readings">
+        <template x-for="row in locationReadings(location)" :key="row.external_id"><div class="detail__pair">
+          <dt x-text="row.kind === 'program_state' ? 'CRWA state' : row.kind === 'discharge' ? 'Reported discharge' : label(row.parameter)"></dt>
+          <dd><strong x-text="row.kind === 'program_state' ? label(row.status) : row.kind === 'discharge' ? dischargeValue(row) : value(row) + ' ' + unit(row.unit)"></strong>
+            <p class="muted" x-text="row.kind === 'program_state' ? stamp(row.fetched_at) : observationStamp(row)"></p>
+            <p class="muted" x-show="row.kind !== 'program_state'" x-text="(row.kind==='laboratory' ? eligibilityLabel(row) : label(row.kind) + ' · ' + label(row.status)) + (row.freshness ? ' · ' + label(row.freshness) : '')"></p>
+            <p class="muted" x-show="row.payload?.limitation" x-text="row.payload?.limitation"></p>
+            <button type="button" class="water-text-button" @click="inspect(row)">Evidence</button>
+          </dd>
+        </div></template>
+      </dl>
+      <p class="muted" x-show="!locationReadings(location).length">No eligible observations retained for this location. A listed place is not necessarily a monitoring station.</p>
+    </div>
+    <footer class="detail__footer water-panel-actions"><button type="button" class="ui-button" @click="openLocationRecords(selectedPlace())">Records</button><a x-show="selectedPlace()?.source_url" :href="selectedPlace()?.source_url" target="_blank" rel="noopener">Source ↗</a></footer>
+  </aside>
+</section>

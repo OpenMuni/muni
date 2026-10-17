@@ -1,0 +1,20 @@
+{
+  "features": [
+    {
+      "attributes": {
+        "Component_Name": "Escherichia coli",
+        "Date_Collected": 1781654400000,
+        "FID": 1,
+        "GlobalID": "00000000-0000-4000-8000-000000000001",
+        "Latitude_DD": 42.35,
+        "Longitude_DD": -71.12,
+        "Reporting_Result": 24,
+        "Safety": "Example only",
+        "Site_ID": "2LARZ",
+        "Site_Name": "Example station",
+        "Town": "Example",
+        "Unit_Abbreviation": "cfu/100ml"
+      }
+    }
+  ]
+}
