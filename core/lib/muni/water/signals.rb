@@ -29,7 +29,7 @@ module Muni
                 source_slug: slug, evidence: { run_id: latest[:id] }, window: { start: latest[:started_at] },
                 explanation: interrupted ? 'Collection interrupted; upstream availability unknown.' : 'Checks running.',
                 method: 'Failed check or no check within two scheduled intervals.',
-                last_check_at: latest[:started_at], error: latest[:error])
+                last_check_at: latest[:started_at], error: Muni::Status.public_error(latest[:error]))
       end
 
       def publish(key, kind, status, payload)

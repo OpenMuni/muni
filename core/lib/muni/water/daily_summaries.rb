@@ -67,7 +67,7 @@ module Muni
         start, finish = Clock.bounds(Date.parse(date))
         rows = Storage.evidence.where(selector.transform_keys(&:to_sym))
                       .where { observed_at >= start }.where { observed_at < finish }
-                                                     .order(:observed_at, :external_id).all
+                      .order(:observed_at, :external_id).all
         definition = Catalog.definitions.fetch(selector['source_slug'].delete_prefix(PREFIX))
         stats = self.class.statistics(rows, start: start, finish: finish,
                                      interval: definition.fetch(:interval), now: @now)

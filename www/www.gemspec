@@ -17,6 +17,7 @@ Gem::Specification.new do |s|
   s.require_paths = ['.']
 
   s.add_dependency 'muni-core', Muni::VERSION
-  s.add_dependency 'puma',      '~> 6.5'
+  s.add_dependency 'puma',      '~> 7.2', '>= 7.2.1'
+  s.add_dependency 'rackup',    '~> 2.3'
   s.add_dependency 'sinatra',   '~> 4.1'
 end

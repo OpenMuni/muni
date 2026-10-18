@@ -5,7 +5,7 @@ require 'time'
 require 'tempfile'
 
 module Muni
-  # rubocop:disable Metrics/ModuleLength
+  # rubocop:disable-next Metrics/ModuleLength
   module Store
     @mutex = Mutex.new
     BACKUP_DAILY_RETENTION = 7
@@ -20,7 +20,7 @@ module Muni
       water_batches water_calculation_jobs water_daily_summaries water_daily_summary_versions water_schedule_state
     ].freeze
 
-    # rubocop:disable Metrics/ClassLength
+    # rubocop:disable-next Metrics/ClassLength
     class << self
       def db
         @db ||= open_db
@@ -175,7 +175,7 @@ module Muni
 
       # Column construction mirrors the schema DSL's supported types and
       # options, so its branching is deliberately kept in one migration path.
-      # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+      # rubocop:disable-next Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def create_record_table(table, schema)
         cols = schema.columns
         has_hall = cols.any? { |c| c.name == :hall }
@@ -195,7 +195,6 @@ module Muni
           index [:hall, time_col] if has_hall && time_col
         end
       end
-      # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
       def ensure_hall_scoped_primary_key!(table, schema)
         return unless hall_scoped_schema?(schema)
@@ -555,7 +554,7 @@ module Muni
 
       # This mutates storage and reports whether a stale-write guard skipped it;
       # a predicate suffix would misleadingly imply a read-only query.
-      # rubocop:disable Naming/PredicateMethod
+      # rubocop:disable-next Naming/PredicateMethod
       def upsert_row(dataset, primary_key, row)
         return false if stale_timestamped_update?(dataset, primary_key, row)
 
@@ -563,7 +562,6 @@ module Muni
         dataset.insert_conflict(target: keys, update: row.except(*keys)).insert(row)
         true
       end
-      # rubocop:enable Naming/PredicateMethod
 
       def hydrate(klass, row, schema)
         coerced = {}
@@ -783,9 +781,7 @@ module Muni
         requested_time_column(schema, preferred) || pick_time_column(schema)
       end
     end
-    # rubocop:enable Metrics/ClassLength
   end
-  # rubocop:enable Metrics/ModuleLength
 end
 
 require 'muni/store/read'

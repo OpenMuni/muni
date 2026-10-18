@@ -77,6 +77,7 @@ window.muniShell = function ({ hall, category }) {
     selected: null,
     hoveredId: null,
     map: null,
+    _mapStyleLoaded: false,
     mapError: null,
     eventSource: null,
     categoryConfig: null,
@@ -1020,9 +1021,17 @@ window.muniShell = function ({ hall, category }) {
         'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf';
     },
 
+    // Keep MapLibre's mutable internals outside Alpine's reactive proxy.
+    rawMap() { return window.Alpine?.raw ? window.Alpine.raw(this.map) : this.map; },
+
+    // Styles can accept data layers while base-map tiles are still loading.
+    mapStyleReady() { return this._mapStyleLoaded || this.rawMap()?.isStyleLoaded(); },
+
     async maybeInitMap() {
       if (this.defaultWidget !== 'map') return;
-      if (!this.map) {
+      try { await window.MUNI_MAP_READY; }
+      catch (_) { this.mapError = 'Map unavailable.'; return; }
+      if (!this.rawMap()) {
         const center = JSON.parse(this.$root.dataset.center);
         const style = this.mapStyle();
         if (!style) {
@@ -1039,14 +1048,16 @@ window.muniShell = function ({ hall, category }) {
         const maxBounds = this.hallMaxBounds();
         if (maxBounds) mapOptions.maxBounds = maxBounds;
         this.map = new maplibregl.Map(mapOptions);
-        this.map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
-        this.map.on('load', () => {
+        this.rawMap().addControl(new maplibregl.NavigationControl({ showCompass: false }));
+        this.rawMap().on('style.load', () => { this._mapStyleLoaded = true; });
+        this.rawMap().on('load', () => {
+          this._mapStyleLoaded = true;
           this.mapError = null;
           this.installHallBoundary();
           this.fitMapToHall({ duration: 0 });
           this.refreshGeo();
         });
-        this.map.on('error', (e) => {
+        this.rawMap().on('error', (e) => {
           if (e?.error?.message) this.mapError = e.error.message;
         });
       }
@@ -1055,7 +1066,7 @@ window.muniShell = function ({ hall, category }) {
     },
 
     retryMap() {
-      if (!this.map) {
+      if (!this.rawMap()) {
         this.maybeInitMap();
         return;
       }
@@ -1065,15 +1076,17 @@ window.muniShell = function ({ hall, category }) {
         return;
       }
       this.mapError = null;
-      this.map.setStyle(style);
-      this.map.once('load', () => {
+      this._mapStyleLoaded = false;
+      this.rawMap().once('style.load', () => {
+        this._mapStyleLoaded = true;
         this.installHallBoundary();
         this.refreshGeo();
       });
+      this.rawMap().setStyle(style);
     },
 
     resizeMap() {
-      this.map?.resize();
+      this.rawMap()?.resize();
     },
 
     hallBbox() {
@@ -1141,9 +1154,9 @@ window.muniShell = function ({ hall, category }) {
 
     fitMapToHall(options = {}) {
       const bbox = this.hallBbox();
-      if (!this.map || !bbox) return;
+      if (!this.rawMap() || !bbox) return;
       const [west, south, east, north] = bbox;
-      this.map.fitBounds([[west, south], [east, north]], {
+      this.rawMap().fitBounds([[west, south], [east, north]], {
         padding: 42,
         maxZoom: 13,
         duration: options.duration ?? 0
@@ -1151,7 +1164,7 @@ window.muniShell = function ({ hall, category }) {
     },
 
     installHallBoundary() {
-      if (!this.map?.isStyleLoaded()) return;
+      if (!this.mapStyleReady()) return;
       const boundary = this.hallBoundaryFeature();
       if (!boundary) return;
       const mask = this.hallMaskFeature();
@@ -1159,13 +1172,13 @@ window.muniShell = function ({ hall, category }) {
       if (mask) {
         const data = { type: 'FeatureCollection', features: [mask] };
         const maskPaint = { 'fill-color': '#dfe3e8', 'fill-opacity': 0.42 };
-        if (this.map.getSource('hall-mask')) {
-          this.map.getSource('hall-mask').setData(data);
+        if (this.rawMap().getSource('hall-mask')) {
+          this.rawMap().getSource('hall-mask').setData(data);
         } else {
-          this.map.addSource('hall-mask', { type: 'geojson', data });
+          this.rawMap().addSource('hall-mask', { type: 'geojson', data });
         }
-        if (!this.map.getLayer('hall-boundary-mask')) {
-          this.map.addLayer({
+        if (!this.rawMap().getLayer('hall-boundary-mask')) {
+          this.rawMap().addLayer({
             id: 'hall-boundary-mask',
             type: 'fill',
             source: 'hall-mask',
@@ -1173,19 +1186,19 @@ window.muniShell = function ({ hall, category }) {
           });
         } else {
           Object.entries(maskPaint).forEach(([property, value]) => {
-            this.map.setPaintProperty('hall-boundary-mask', property, value);
+            this.rawMap().setPaintProperty('hall-boundary-mask', property, value);
           });
         }
       }
 
       const boundaryData = { type: 'FeatureCollection', features: [boundary] };
-      if (this.map.getSource('hall-boundary')) {
-        this.map.getSource('hall-boundary').setData(boundaryData);
+      if (this.rawMap().getSource('hall-boundary')) {
+        this.rawMap().getSource('hall-boundary').setData(boundaryData);
       } else {
-        this.map.addSource('hall-boundary', { type: 'geojson', data: boundaryData });
+        this.rawMap().addSource('hall-boundary', { type: 'geojson', data: boundaryData });
       }
-      if (!this.map.getLayer('hall-boundary-line')) {
-        this.map.addLayer({
+      if (!this.rawMap().getLayer('hall-boundary-line')) {
+        this.rawMap().addLayer({
           id: 'hall-boundary-line',
           type: 'line',
           source: 'hall-boundary',
@@ -1285,28 +1298,28 @@ window.muniShell = function ({ hall, category }) {
     },
 
     clearMapLayers() {
-      if (!this.map?.isStyleLoaded()) return;
+      if (!this.mapStyleReady()) return;
       try {
         [
           'records-clusters', 'records-cluster-count', 'records-pts',
           'records-polygons-line', 'records-polygons-fill',
           'records-selection-line', 'records-selection-fill', 'records-selection-pt'
         ].forEach((id) => {
-          if (this.map.getLayer(id)) this.map.removeLayer(id);
+          if (this.rawMap().getLayer(id)) this.rawMap().removeLayer(id);
         });
-        if (this.map.getSource('records')) this.map.removeSource('records');
-        if (this.map.getSource('records-points')) this.map.removeSource('records-points');
-        if (this.map.getSource('records-polygons')) this.map.removeSource('records-polygons');
+        if (this.rawMap().getSource('records')) this.rawMap().removeSource('records');
+        if (this.rawMap().getSource('records-points')) this.rawMap().removeSource('records-points');
+        if (this.rawMap().getSource('records-polygons')) this.rawMap().removeSource('records-polygons');
       } catch (_) { /* style churn */ }
     },
 
     clearParkingLocationLayer() {
-      if (!this.map?.isStyleLoaded()) return;
+      if (!this.mapStyleReady()) return;
       try {
         ['parking-user-dot', 'parking-user-halo'].forEach((id) => {
-          if (this.map.getLayer(id)) this.map.removeLayer(id);
+          if (this.rawMap().getLayer(id)) this.rawMap().removeLayer(id);
         });
-        if (this.map.getSource('parking-user-location')) this.map.removeSource('parking-user-location');
+        if (this.rawMap().getSource('parking-user-location')) this.rawMap().removeSource('parking-user-location');
       } catch (_) { /* style churn */ }
     },
 
@@ -1317,7 +1330,7 @@ window.muniShell = function ({ hall, category }) {
 
     async refreshGeo() {
       const cat = this.category;
-      if (!this.map || this.defaultWidget !== 'map') return;
+      if (!this.rawMap() || this.defaultWidget !== 'map') return;
       const qs = this.geoQueryParams();
       let r;
       try {
@@ -1330,10 +1343,10 @@ window.muniShell = function ({ hall, category }) {
       const geojson = this.enrichGeojson(await r.json());
       if (cat === this.category) this.geoFeatureCount = geojson.features?.length || 0;
       if (cat !== this.category) return;
-      if (this.map.isStyleLoaded()) {
+      if (this.mapStyleReady()) {
         this.installGeoLayer(geojson);
       } else {
-        this.map.once('load', () => {
+        this.rawMap().once('style.load', () => {
           if (this.category === cat) this.installGeoLayer(geojson);
         });
       }
@@ -1349,22 +1362,22 @@ window.muniShell = function ({ hall, category }) {
       }), { west: coords[0][0], east: coords[0][0], south: coords[0][1], north: coords[0][1] });
       if (![bounds.west, bounds.east, bounds.south, bounds.north].every(Number.isFinite)) return;
       if (bounds.west === bounds.east && bounds.south === bounds.north) {
-        this.map.flyTo({ center: [bounds.west, bounds.south], zoom: 14, duration: 600 });
+        this.rawMap().flyTo({ center: [bounds.west, bounds.south], zoom: 14, duration: 600 });
         return;
       }
       const mapBounds = [[bounds.west, bounds.south], [bounds.east, bounds.north]];
       const options = { padding: 48, maxZoom: 14 };
-      const camera = this.map.cameraForBounds?.(mapBounds, options);
+      const camera = this.rawMap().cameraForBounds?.(mapBounds, options);
       if (camera) {
         const minZoom = this.categoryMinDataZoom();
-        this.map.easeTo({
+        this.rawMap().easeTo({
           ...camera,
           zoom: minZoom ? Math.max(camera.zoom, minZoom) : camera.zoom,
           duration: 600
         });
         return;
       }
-      this.map.fitBounds(mapBounds, { ...options, duration: 600 });
+      this.rawMap().fitBounds(mapBounds, { ...options, duration: 600 });
     },
 
     categoryMinDataZoom() {
@@ -1377,8 +1390,17 @@ window.muniShell = function ({ hall, category }) {
       return { ...geojson, features };
     },
 
+    clusterTextFont() {
+      const layers = this.rawMap()?.getStyle?.()?.layers || [];
+      const expressions = new Set(['get', 'literal', 'match', 'case', 'coalesce', 'step', 'interpolate', 'let', 'var']);
+      const fonts = layers.map(layer => layer.layout?.['text-font']).find(value =>
+        Array.isArray(value) && value.length && !expressions.has(value[0]) &&
+        value.every(font => typeof font === 'string'));
+      return fonts || ['Noto Sans Regular'];
+    },
+
     installGeoLayer(geojson) {
-      if (!this.map?.isStyleLoaded()) return;
+      if (!this.mapStyleReady()) return;
       const theme = this.mapTheme();
       const pointGeojson = this.geojsonWithGeometryTypes(geojson, ['Point']);
       const polygonGeojson = this.geojsonWithGeometryTypes(geojson, ['Polygon', 'MultiPolygon']);
@@ -1391,7 +1413,7 @@ window.muniShell = function ({ hall, category }) {
       this.clearMapLayers();
       try {
         this.installHallBoundary();
-        this.map.addSource('records-points', {
+        this.rawMap().addSource('records-points', {
           type: 'geojson',
           data: pointGeojson,
           cluster: cluster,
@@ -1399,11 +1421,11 @@ window.muniShell = function ({ hall, category }) {
           clusterRadius: 50
         });
         if (hasPolygons) {
-          this.map.addSource('records-polygons', {
+          this.rawMap().addSource('records-polygons', {
             type: 'geojson',
             data: polygonGeojson
           });
-          this.map.addLayer({
+          this.rawMap().addLayer({
             id: 'records-polygons-fill',
             type: 'fill',
             source: 'records-polygons',
@@ -1412,7 +1434,7 @@ window.muniShell = function ({ hall, category }) {
               'fill-opacity': 0.28
             }
           });
-          this.map.addLayer({
+          this.rawMap().addLayer({
             id: 'records-polygons-line',
             type: 'line',
             source: 'records-polygons',
@@ -1425,7 +1447,7 @@ window.muniShell = function ({ hall, category }) {
         }
 
         if (cluster) {
-          this.map.addLayer({
+          this.rawMap().addLayer({
             id: 'records-clusters',
             type: 'circle',
             source: 'records-points',
@@ -1438,18 +1460,18 @@ window.muniShell = function ({ hall, category }) {
               'circle-stroke-color': '#FFFFFF'
             }
           });
-          this.map.addLayer({
+          this.rawMap().addLayer({
             id: 'records-cluster-count',
             type: 'symbol',
             source: 'records-points',
             filter: ['has', 'point_count'],
-            layout: { 'text-field': '{point_count_abbreviated}', 'text-size': 11 },
+            layout: { 'text-field': '{point_count_abbreviated}', 'text-font': this.clusterTextFont(), 'text-size': 11 },
             paint: { 'text-color': '#ffffff' }
           });
         }
 
         if (hasPolygons) {
-          this.map.addLayer({
+          this.rawMap().addLayer({
             id: 'records-selection-fill',
             type: 'fill',
             source: 'records-polygons',
@@ -1459,7 +1481,7 @@ window.muniShell = function ({ hall, category }) {
               'fill-opacity': 0.22
             }
           });
-          this.map.addLayer({
+          this.rawMap().addLayer({
             id: 'records-selection-line',
             type: 'line',
             source: 'records-polygons',
@@ -1492,8 +1514,8 @@ window.muniShell = function ({ hall, category }) {
         } else if (theme.polygon) {
           ptLayer.filter = ['match', ['geometry-type'], ['Point'], true, false];
         }
-        this.map.addLayer(ptLayer);
-        this.map.addLayer({
+        this.rawMap().addLayer(ptLayer);
+        this.rawMap().addLayer({
           id: 'records-selection-pt',
           type: 'circle',
           source: 'records-points',
@@ -1507,7 +1529,7 @@ window.muniShell = function ({ hall, category }) {
             'circle-stroke-opacity': 0.85
           }
         });
-        if (this.map.getLayer('hall-boundary-line')) this.map.moveLayer('hall-boundary-line');
+        if (this.rawMap().getLayer('hall-boundary-line')) this.rawMap().moveLayer('hall-boundary-line');
 
         if (this.category === 'parking') this.installParkingLocationLayer();
 
@@ -1545,16 +1567,16 @@ window.muniShell = function ({ hall, category }) {
     },
 
     updateSelectedMapFilter() {
-      if (!this.map?.isStyleLoaded()) return;
+      if (!this.mapStyleReady()) return;
       try {
-        if (this.map.getLayer('records-selection-fill')) this.map.setFilter('records-selection-fill', this.selectedPolygonFilter());
-        if (this.map.getLayer('records-selection-line')) this.map.setFilter('records-selection-line', this.selectedPolygonFilter());
-        if (this.map.getLayer('records-selection-pt')) this.map.setFilter('records-selection-pt', this.selectedPointFilter());
+        if (this.rawMap().getLayer('records-selection-fill')) this.rawMap().setFilter('records-selection-fill', this.selectedPolygonFilter());
+        if (this.rawMap().getLayer('records-selection-line')) this.rawMap().setFilter('records-selection-line', this.selectedPolygonFilter());
+        if (this.rawMap().getLayer('records-selection-pt')) this.rawMap().setFilter('records-selection-pt', this.selectedPointFilter());
       } catch (_) { /* layer churn */ }
     },
 
     maybeRequestParkingLocation() {
-      if (this.category !== 'parking' || !this.map) return;
+      if (this.category !== 'parking' || !this.rawMap()) return;
       if (this.parkingUserLocation) {
         this.installParkingLocationLayer();
         this.focusParkingNearUser({ duration: 600 });
@@ -1608,17 +1630,17 @@ window.muniShell = function ({ hall, category }) {
     },
 
     installParkingLocationLayer() {
-      if (this.category !== 'parking' || !this.map?.isStyleLoaded()) return;
+      if (this.category !== 'parking' || !this.mapStyleReady()) return;
       const feature = this.parkingLocationFeature();
       if (!feature) return;
       const data = { type: 'FeatureCollection', features: [feature] };
-      if (this.map.getSource('parking-user-location')) {
-        this.map.getSource('parking-user-location').setData(data);
+      if (this.rawMap().getSource('parking-user-location')) {
+        this.rawMap().getSource('parking-user-location').setData(data);
       } else {
-        this.map.addSource('parking-user-location', { type: 'geojson', data });
+        this.rawMap().addSource('parking-user-location', { type: 'geojson', data });
       }
-      if (!this.map.getLayer('parking-user-halo')) {
-        this.map.addLayer({
+      if (!this.rawMap().getLayer('parking-user-halo')) {
+        this.rawMap().addLayer({
           id: 'parking-user-halo',
           type: 'circle',
           source: 'parking-user-location',
@@ -1632,8 +1654,8 @@ window.muniShell = function ({ hall, category }) {
           }
         });
       }
-      if (!this.map.getLayer('parking-user-dot')) {
-        this.map.addLayer({
+      if (!this.rawMap().getLayer('parking-user-dot')) {
+        this.rawMap().addLayer({
           id: 'parking-user-dot',
           type: 'circle',
           source: 'parking-user-location',
@@ -1648,14 +1670,14 @@ window.muniShell = function ({ hall, category }) {
     },
 
     focusParkingNearUser({ duration = 0 } = {}) {
-      if (this.category !== 'parking' || !this.map) return false;
+      if (this.category !== 'parking' || !this.rawMap()) return false;
       const coords = this.parkingUserLocation?.coordinates;
       if (!Array.isArray(coords) || coords.length < 2 || !coords.every(Number.isFinite)) return false;
       if (!this.coordsWithinHallMaxBounds(coords)) return false;
       this._geoFitPending = false;
-      this.map.easeTo({
+      this.rawMap().easeTo({
         center: coords,
-        zoom: Math.max(this.map.getZoom() || 0, 15.5),
+        zoom: Math.max(this.rawMap().getZoom() || 0, 15.5),
         duration
       });
       return true;
@@ -1670,15 +1692,15 @@ window.muniShell = function ({ hall, category }) {
     },
 
     bindMapLayerEvents(layerId) {
-      if (!this.map?.getLayer(layerId) || this._boundMapLayers.has(layerId)) return;
+      if (!this.rawMap()?.getLayer(layerId) || this._boundMapLayers.has(layerId)) return;
       this._boundMapLayers.add(layerId);
-      this.map.on('click', layerId, (e) => this.onMapPointClick(e));
-      this.map.on('mousemove', layerId, (e) => {
-        this.map.getCanvas().style.cursor = 'pointer';
+      this.rawMap().on('click', layerId, (e) => this.onMapPointClick(e));
+      this.rawMap().on('mousemove', layerId, (e) => {
+        this.rawMap().getCanvas().style.cursor = 'pointer';
         this.hoveredId = e.features[0]?.properties?.external_id;
       });
-      this.map.on('mouseleave', layerId, () => {
-        this.map.getCanvas().style.cursor = '';
+      this.rawMap().on('mouseleave', layerId, () => {
+        this.rawMap().getCanvas().style.cursor = '';
         this.hoveredId = null;
       });
     },
@@ -2035,13 +2057,13 @@ window.muniShell = function ({ hall, category }) {
     },
 
     highlight(row) {
-      if (!this.map || this.defaultWidget !== 'map') return;
+      if (!this.rawMap() || this.defaultWidget !== 'map') return;
       const coords = this.recordAnchorCoords(row);
       if (!coords) return;
       const parking = this.isParkingRecord(row);
-      this.map.flyTo({
+      this.rawMap().flyTo({
         center: coords,
-        zoom: parking ? Math.max(this.map.getZoom() || 0, 17.4) : 14,
+        zoom: parking ? Math.max(this.rawMap().getZoom() || 0, 17.4) : 14,
         speed: parking ? 0.55 : 0.8,
         offset: parking ? this.selectionCameraOffset() : [0, 0]
       });

@@ -253,7 +253,7 @@ module Muni
         return nil unless row
 
         row.transform_keys(&:to_s).transform_values { |value| value.is_a?(Time) ? value.utc.iso8601 : value }
-                                  .tap do |record|
+           .tap do |record|
           %w[payload raw].each { |key| record[key] = JSON.parse(record[key] || '{}') }
         end
       end

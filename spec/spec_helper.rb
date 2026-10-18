@@ -8,6 +8,7 @@ require 'vcr'
 require 'webmock/rspec'
 
 ENV['RACK_ENV'] ||= 'test'
+ENV['MUNI_DB_PATH'] ||= File.join(Dir.mktmpdir('muni-spec-boot'), 'muni.sqlite3')
 # Cambridge's floating timestamps are interpreted in local Eastern time.
 ENV['TZ'] = 'America/New_York'
 

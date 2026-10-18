@@ -3,7 +3,7 @@ require 'uri'
 
 module Muni
   # Public status contract for lightweight city health pages.
-  # rubocop:disable Metrics/ModuleLength
+  # rubocop:disable-next Metrics/ModuleLength
   module Status
     module_function
 
@@ -112,7 +112,7 @@ module Muni
       row.merge(evaluate_source(row, source))
     end
 
-    # rubocop:disable Metrics/CyclomaticComplexity
+    # rubocop:disable-next Metrics/CyclomaticComplexity
     def evaluate_source(row, source)
       return status_for('outage', 'Critical source has no collected rows.') if row[:critical] && row[:row_count].zero?
       return status_for('degraded', 'No collected rows yet.') if row[:row_count].zero?
@@ -139,7 +139,6 @@ module Muni
     rescue StandardError
       status_for(source ? 'degraded' : 'outage', 'Source status could not be evaluated.')
     end
-    # rubocop:enable Metrics/CyclomaticComplexity
 
     def status_checks(hall, counts, sources, now)
       [
@@ -163,7 +162,7 @@ module Muni
       expected = Muni::Get::Registry.category_source_slugs.select { |slug| slug.start_with?("#{hall}/") }
       missing = expected.reject { |slug| counts.fetch(slug, 0).positive? }
       stale_beats = Muni::Registry.beats.keys.select { |slug| slug.start_with?("#{hall}/") }
-                                             .reject { |slug| beat_fresh?(slug, now) }
+                                  .reject { |slug| beat_fresh?(slug, now) }
       failures = missing + stale_beats
       detail = if failures.empty?
                  'Launch readiness checks are passing.'
@@ -379,7 +378,6 @@ module Muni
       Time.parse(value.to_s).utc
     end
   end
-  # rubocop:enable Metrics/ModuleLength
 end
 
 require 'muni/status/backup'

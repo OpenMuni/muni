@@ -157,7 +157,7 @@ module Muni
           latest_updated_at:  iso_time(data_freshness[:latest_updated_at]),
           data_lag_seconds:   data_freshness[:data_lag_seconds],
           source_lag_seconds: data_freshness[:source_lag_seconds],
-          last_error:         latest_run && presence(latest_run[:error]),
+          last_error:         Muni::Status.public_error(latest_run && latest_run[:error]),
           note:               SOURCE_NOTES[source_slug] || catalog_note(source_slug),
           source_url:         catalog_url(source_slug)
         }

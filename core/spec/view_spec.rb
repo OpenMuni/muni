@@ -368,7 +368,7 @@ RSpec.describe Muni::View do
       .to eq([[unknown, 'cambridge/metered_parking_spaces']])
   end
 
-  # rubocop:disable RSpec/ExampleLength, Layout/HashAlignment
+  # rubocop:disable-next RSpec/ExampleLength, Layout/HashAlignment
   it 'returns default event records for today and future by overlap, source dedupe, and calendar sort' do
     Muni::Store.ensure_tables!
     allow(Time).to receive(:now).and_return(Time.utc(2026, 6, 18, 22)) # 6 PM Cambridge time.
@@ -433,7 +433,6 @@ RSpec.describe Muni::View do
     today_ids = today_rows.map { |row| row[:external_id] || row['external_id'] }
     expect(today_ids).not_to include('event/tomorrow')
   end
-  # rubocop:enable RSpec/ExampleLength, Layout/HashAlignment
 
   it 'serializes metered parking polygons as GeoJSON with centroid fallback properties' do
     geometry = metered_parking_geometry

@@ -92,7 +92,7 @@ module Muni
         to = @to
         Storage.db[:water_runs].where(source_slug: @source, status: 'complete')
                .where { started_at >= from }.where { started_at < to }
-                                            .select(:started_at, :ended_at).all.map do |row|
+               .select(:started_at, :ended_at).all.map do |row|
           { observed_at: row[:started_at], fetched_at: row[:ended_at] }
         end
       end

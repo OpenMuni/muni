@@ -10,7 +10,7 @@ data/tiles/
 # Bundler / Ruby
 .bundle/
 .muni/
-vendor/
+/vendor/
 *.gem
 *.rbc
 /.config
@@ -38,10 +38,28 @@ xcuserdata/
 *.xcuserstate
 
 # Env
+*.env
+!*.env.example
 .env
 .env.local
 .env.*
 !.env.example
+
+# Private deployment material belongs outside the public source tree.
+/deploy/aws/
+/docs/AWS_MIGRATION.md
+.agents/
+.codex/
+**/.terraform/
+*.tfstate*
+*.tfvars*
+*.tfplan
+*.pem
+*.key
+*.p12
+*.pfx
+runtime.conf
+__pycache__/
 
 # Test artifacts
 .rspec_status

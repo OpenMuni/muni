@@ -34,10 +34,10 @@ module Muni
           basemap:     basemap,
           checked_at:  Time.now.utc.iso8601
         }
-      rescue StandardError => e
+      rescue StandardError
         {
           ready:      false,
-          error:      "#{e.class}: #{e.message}",
+          error:      'readiness check failed',
           checked_at: Time.now.utc.iso8601
         }
       end
@@ -162,7 +162,7 @@ module Muni
           last_beat: last && {
             slug:       last[:beat_slug],
             started_at: last[:started_at].utc.iso8601,
-            error:      last[:error]
+            error:      Muni::Status.public_error(last[:error])
           }
         )
       end

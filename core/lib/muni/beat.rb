@@ -82,7 +82,7 @@ module Muni
 
     # Coordinates streaming, batching, cursoring, reconciliation, and retention
     # as one success boundary so partial collectors never prune inventory.
-    # rubocop:disable Metrics/AbcSize
+    # rubocop:disable-next Metrics/AbcSize
     def pull_and_persist(started)
       source = self.class.source_class.new
       slug = source.class.slug
@@ -115,7 +115,6 @@ module Muni
 
       { rows_in: rows_in, rows_upserted: rows_upserted }
     end
-    # rubocop:enable Metrics/AbcSize
 
     def prune_stale_refresh?(rows_in, complete)
       self.class.mode == :full && self.class.prune_stale && rows_in.positive? && complete

@@ -28,11 +28,8 @@ module Muni
           end
 
           def load_handler
-            require 'rackup/handler/puma'
-            Rackup::Handler::Puma
-          rescue LoadError
-            require 'rack/handler/puma'
-            Rack::Handler::Puma
+            require 'rackup/handler'
+            Rackup::Handler.get(:puma)
           end
         end
       end

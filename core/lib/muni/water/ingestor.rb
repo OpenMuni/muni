@@ -4,7 +4,7 @@ require 'muni/water/run_timing'
 module Muni
   module Water
     # Publication coordinates collection, normalization, persistence and calculation.
-    # rubocop:disable Metrics/ClassLength
+    # rubocop:disable-next Metrics/ClassLength
     class Ingestor
       attr_reader :slug
 
@@ -48,7 +48,7 @@ module Muni
       end
 
       # Keep all pre-commit preparation in one measured phase.
-      # rubocop:disable Metrics/AbcSize
+      # rubocop:disable-next Metrics/AbcSize
       def prepare_collection(adapter)
         records = adapter.collect
         retrieved_at = Time.now.utc
@@ -80,7 +80,6 @@ module Muni
         writer&.close
         raise
       end
-      # rubocop:enable Metrics/AbcSize
 
       def calculate(result)
         Calculations.new(now: @now).drain(slug: slug)
@@ -298,6 +297,5 @@ module Muni
 
       def archive_prepared_responses(responses) = ResponseArchive.publish(slug, responses, now: @now)
     end
-    # rubocop:enable Metrics/ClassLength
   end
 end

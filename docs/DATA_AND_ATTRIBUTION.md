@@ -36,6 +36,11 @@ an emergency or health advisory.
 
 ## Maps and assets
 
+- MapLibre GL JS 6.15.0 distribution modules and CSS are served locally from
+  `www/public/vendor/maplibre-gl/` so module workers share the application's
+  origin. They are copied unmodified from the locked npm package, retain its
+  BSD-3-Clause `LICENSE.txt`, and are checked against that package in CI.
+
 - OpenStreetMap data is under the Open Database License (ODbL). Public maps
   using it must provide [OpenStreetMap attribution](https://www.openstreetmap.org/copyright).
   See [production basemap guidance](BASEMAPS.md) for Muni's rendering options.

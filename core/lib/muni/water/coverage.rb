@@ -50,7 +50,7 @@ module Muni
 
       def run_metadata(run)
         { last_run_changes: run && run[:changes], last_run_records: run && run[:records],
-          last_error: run && run[:error] }
+          last_error: Muni::Status.public_error(run && run[:error]) }
       end
 
       def observation_bounds(slug)

@@ -16,7 +16,7 @@ module Muni
         history = Storage.db[:water_revisions]
         changed = history.where { id > cutoff }.select(:evidence_id)
         latest = history.where(evidence_id: changed).where { id <= cutoff }
-                                                    .group(:evidence_id).select { max(id).as(:id) }
+                        .group(:evidence_id).select { max(id).as(:id) }
         expressions = columns.map do |column|
           Sequel.function(:json_extract, :record, "$.#{column}").as(column)
         end
@@ -64,7 +64,7 @@ module Muni
       def revisions(records, cutoff:)
         ids = records.map { |record| record['external_id'] || record[:external_id] }
         latest = Storage.db[:water_revisions].where(evidence_id: ids).where { id <= cutoff }
-                                                                     .group(:evidence_id).select { max(id).as(:id) }
+                                             .group(:evidence_id).select { max(id).as(:id) }
         Storage.db[:water_revisions].where(id: latest).select(:id, :evidence_id, :version)
                .all.to_h { |row| [row[:evidence_id], row] }
       end
