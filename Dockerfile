@@ -5,7 +5,7 @@ RUN go mod download
 COPY build/caddy/main.go ./
 RUN CGO_ENABLED=0 go build -trimpath -o /caddy .
 
-FROM ruby:3.3.12-slim-bookworm AS base
+FROM ruby:3.3.12-slim-trixie AS base
 
 ENV BUNDLE_WITHOUT=development:test \
     BUNDLE_DEPLOYMENT=1 \
@@ -17,7 +17,7 @@ ENV BUNDLE_WITHOUT=development:test \
 RUN apt-get update -qq && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
-      build-essential libsqlite3-dev zlib1g-dev curl ca-certificates tini && \
+      curl ca-certificates tini && \
     rm -rf /var/lib/apt/lists/*
 
 # Caddy runs beside Puma and the collector on the single data-owning Machine.
@@ -38,7 +38,11 @@ COPY core/muni-core.gemspec core/
 COPY cli/muni-cli.gemspec   cli/
 COPY www/www.gemspec        www/
 COPY core/lib/muni/version.rb core/lib/muni/
-RUN bundle install --jobs 4 --retry 3
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends build-essential zlib1g-dev && \
+    bundle install --jobs 4 --retry 3 && \
+    apt-get purge -y --auto-remove build-essential zlib1g-dev && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY . .
 

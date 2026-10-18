@@ -89,6 +89,13 @@ jobs:
           persist-credentials: false
       - name: Build release image
         run: docker build --pull --tag muni-security-check .
+      - name: Exercise the packaged web server and proxy
+        run: |
+          docker run --detach --name muni-smoke --publish 127.0.0.1:19458:8080 \
+            --env RACK_ENV=production --env MUNI_WEB_BEATS=0 muni-security-check
+          trap 'docker logs muni-smoke; docker rm --force muni-smoke' EXIT
+          curl --fail --retry 20 --retry-delay 1 --retry-all-errors http://127.0.0.1:19458/healthz
+          curl --fail http://127.0.0.1:19458/vendor/maplibre-gl/maplibre-gl-worker.mjs --output /dev/null
       - name: Scan fixable high and critical container vulnerabilities
         run: |
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \

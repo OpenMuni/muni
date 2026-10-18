@@ -22,6 +22,24 @@ and scans the container for fixable high/critical vulnerabilities. The same
 checks run weekly. Container findings without an upstream fix still need review;
 the automated threshold is not a claim that an image has no vulnerabilities.
 
+The 2026-10-18 release image uses Debian Trixie and removes compiler/development
+packages after installing gems. Its broader scan, including unfixed findings,
+reported no critical vulnerabilities and ten distinct high-severity Debian
+advisories with no fixed distribution package yet (47 package-level matches):
+
+- util-linux: CVE-2026-76642, CVE-2026-78408, CVE-2026-78409, CVE-2026-78410.
+- curl: CVE-2026-12064, CVE-2026-8458.
+- acl: CVE-2026-54369; systemd: CVE-2026-16742.
+- ncurses: CVE-2025-69720; Perl Archive::Tar: CVE-2026-9538.
+
+These are scanner version matches, not demonstrated application exploits.
+The mount/cgroup, home-management, archive, and terminal operations described
+by these advisories are not part of Muni's web request handling. The packaged
+curl utility is used by the optional HTTP uptime script, not the Ruby data
+clients. Review these findings against each deployment's configuration, avoid
+privileged containers, and rebuild as distribution fixes become available.
+Source publication does not deploy this image or certify an existing service.
+
 Keep `.env` files, databases, uploads, Terraform state, and production runbooks
 outside commits and container build contexts. Never copy production data into
 test fixtures. Detailed operational errors stay in private storage; public
