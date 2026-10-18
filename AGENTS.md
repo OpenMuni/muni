@@ -4,7 +4,7 @@
 
 ### Environment
 
-- Ruby 3.3.6 is installed at `/home/ubuntu/.rubies/ruby-3.3.6/bin` and added to PATH via `~/.bashrc`.
+- Use Ruby 3.3.12, as pinned in `.ruby-version`. Install it with your Ruby version manager before running `./setup`.
 - SQLite is the only database; no external DB server needed. Data lives in `data/db/muni.sqlite3`.
 - The project is a Ruby monorepo with 3 sub-gems: `core/`, `cli/`, `www/`.
 
@@ -13,7 +13,7 @@
 - **Web app:** `bundle exec muni serve --bind=0.0.0.0 --port=4567` — starts Puma on :4567. Health: `GET /healthz`.
 - **Beats scheduler:** `bundle exec muni beats serve` — polls external data sources on schedule.
 - **Single beat run:** `bundle exec muni beats run <source_slug> --json` — e.g., `cambridge/service_requests`.
-- The frontend uses Alpine.js/htmx/MapLibre loaded from CDN; no JS build step required.
+- The frontend uses Alpine.js/MapLibre loaded from CDN; no JS build step required. `package-lock.json` audits the CDN dependencies.
 
 ### Testing & Linting
 

@@ -245,7 +245,7 @@ module Muni
           end
 
           best_by_key.values.sort_by { |item| [-item['score'], section_index(item['section_key']), item['title'].to_s] }
-                            .map { |item| ranked_candidate(item) }
+                     .map { |item| ranked_candidate(item) }
         end
 
         def ranked_candidate(item)

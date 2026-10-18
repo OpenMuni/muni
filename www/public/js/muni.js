@@ -1022,6 +1022,8 @@ window.muniShell = function ({ hall, category }) {
 
     async maybeInitMap() {
       if (this.defaultWidget !== 'map') return;
+      try { await window.MUNI_MAP_READY; }
+      catch (_) { this.mapError = 'Map unavailable.'; return; }
       if (!this.map) {
         const center = JSON.parse(this.$root.dataset.center);
         const style = this.mapStyle();

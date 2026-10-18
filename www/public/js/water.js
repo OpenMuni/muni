@@ -456,6 +456,8 @@ window.muniWater = function () {
     updateMarkers() { document.querySelectorAll('#water-map [data-water-location]').forEach(button=>{const loc=this.data.locations.find(row=>row.id===button.dataset.waterLocation); button.hidden=!!this.reach && loc?.reach_id!==this.reach; button.setAttribute('aria-pressed',String(loc?.id===this.location));button.classList.toggle('is-hovered',loc?.id===this.hoveredLocation);}); },
     async retryMap() { map?.remove(); map=null; await this.initMap(); },
     async initMap() {
+      try { await window.MUNI_MAP_READY; }
+      catch (_) { this.mapError='Map unavailable.'; return; }
       if(map)return;
       this.mapError='';
       if(typeof maplibregl==='undefined'){this.mapError='Map unavailable.';return;}

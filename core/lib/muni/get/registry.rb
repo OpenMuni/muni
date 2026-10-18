@@ -2,7 +2,7 @@ module Muni
   module Get
     # Canonical map of launch collector domains → providers → sources/records.
     # View categories and MCP tools should derive from here when possible.
-    # rubocop:disable Metrics/ModuleLength
+    # rubocop:disable-next Metrics/ModuleLength
     module Registry
       P = Provider
 
@@ -304,6 +304,5 @@ module Muni
         end
       end
     end
-    # rubocop:enable Metrics/ModuleLength
   end
 end

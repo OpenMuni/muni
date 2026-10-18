@@ -1,7 +1,7 @@
 # Self-hosting Muni
 
 Start with a local installation before deploying a public instance. Use Ruby
-3.3.6 and SQLite:
+3.3.12 and SQLite:
 
 ```sh
 ./setup

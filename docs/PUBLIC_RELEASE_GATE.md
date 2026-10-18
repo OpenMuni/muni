@@ -1,6 +1,6 @@
 # Public release gate
 
-This private source snapshot is prepared for review. It is not authorization to change repository visibility, publish data, or deploy the service.
+This checklist applies to source releases of `OpenMuni/muni`. Publishing source does not publish the operated service's database, uploads, credentials, or deployment runbooks, and does not deploy the code.
 
 ## Decisions required from the project owner
 
@@ -14,8 +14,8 @@ This private source snapshot is prepared for review. It is not authorization to 
 
 1. Record the owner decisions above and resolve any resulting code, license, attribution, or branding changes in reviewed commits.
 2. Recheck every tracked file, the clean repository history, the live GitHub file list, and CI artifacts for secrets, private records, generated files, and unlicensed content. Rotate any credential found exposed.
-3. Run `./setup`, `bin/test-all`, `bin/lint --cache false`, and `/healthz` from a fresh checkout without production credentials. Confirm the GitHub read-only CI run passes.
-4. Verify branch protection, dependency and secret scanning, private vulnerability reporting, and repository access. GitHub currently marks the `main` branch rule as unenforced while this private repository is on a free personal account. Verify enforcement after making the repository public, or move to an account and plan that supports private branch protection before relying on the rule while private. Keep production secrets and deployment runbooks outside this repository.
-5. Only after an explicit owner decision to publish, change `charliemags/muni` visibility to public. Inspect its public file list and notices. Then update the project website and announce contributor channels separately.
+3. Run `./setup`, `bin/test-all`, `bin/lint --cache false`, `python3 bin/test-http-security.py`, and `npm ci --ignore-scripts && npm test` from a fresh checkout without production credentials. Require passing CI jobs for tests, current dependency audits, full-history secret scanning, and the container build/security scan.
+4. Verify branch protection, dependency and secret scanning, private vulnerability reporting, and repository access. Some GitHub plans do not enforce protection for private repositories; verify enforcement as part of the public transition. Keep production secrets and deployment runbooks outside this repository.
+5. After the owner authorizes publication and all checks pass, commit the reviewed source, merge its pull request, and require the merged `main` CI run to pass before changing `OpenMuni/muni` visibility to public. Immediately verify public contents, required reviews/status checks, secret scanning/push protection, and private vulnerability reporting. Website changes and announcements are separate actions.
 
 The live Muni.fyi service, database, uploads, and reporting workflow require their own privacy and operations review before any related publication.

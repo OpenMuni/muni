@@ -19,7 +19,7 @@ link when available, and what you expected to understand.
 
 ## Local development
 
-Use Ruby 3.3.6 and SQLite. From a clean clone:
+Use Ruby 3.3.12 and SQLite. From a clean clone:
 
 ```sh
 ./setup

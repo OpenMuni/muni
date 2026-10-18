@@ -18,7 +18,7 @@
 	}
 
 	# Static assets and byte ranges do not occupy Ruby threads or SQLite slots.
-	@assets path /css/* /js/* /icons/* /fonts/*
+	@assets path /css/* /js/* /icons/* /fonts/* /vendor/*
 	handle @assets {
 		root * /app/www/public
 		header Cache-Control "public, max-age=3600"
@@ -45,17 +45,6 @@
 		}
 		header Cache-Control "public, max-age=86400"
 		header Access-Control-Allow-Origin "*"
-	}
-
-	# Server-Sent Events: disable buffering and bump the read timeout.
-	@stream path /stream/*
-	handle @stream {
-		reverse_proxy {$MUNI_WEB_UPSTREAM:127.0.0.1:4567} {
-			flush_interval -1
-			transport http {
-				read_timeout 24h
-			}
-		}
 	}
 
 	# Everything else goes to the Sinatra app.

@@ -16,11 +16,14 @@ Gem::Specification.new do |s|
   s.files = Dir['lib/**/*.rb'] + Dir['lib/muni/water/*.json'] + Dir['halls/*.yml']
   s.require_paths = ['lib']
 
-  s.add_dependency 'faraday',       '~> 2.10'
+  s.add_dependency 'faraday',       '~> 2.14', '>= 2.14.3'
   s.add_dependency 'faraday-retry', '~> 2.2'
-  s.add_dependency 'nokogiri',      '~> 1.19'
+  s.add_dependency 'json',          '~> 2.19', '>= 2.19.9'
+  s.add_dependency 'nokogiri',      '~> 1.19', '>= 1.19.4'
   s.add_dependency 'pdf-reader',    '~> 2.12'
+  s.add_dependency 'resolv',        '~> 0.3.2'
   s.add_dependency 'rss',           '~> 0.3'
   s.add_dependency 'sequel',        '~> 5.86'
-  s.add_dependency 'sqlite3',       '~> 2.1'
+  s.add_dependency 'sqlite3',       '~> 2.10'
+  s.add_dependency 'zlib',          '~> 3.1', '>= 3.1.2'
 end

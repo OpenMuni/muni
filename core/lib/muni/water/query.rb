@@ -75,7 +75,7 @@ module Muni
         limit, offset = pagination(params)
         rows = dataset.order(Sequel.desc(:generated_at), :id).limit(limit, offset).all
         total = dataset.count
-        envelope(signals: rows.map { |row| row.merge(payload: JSON.parse(row[:payload])) }, total: total,
+        envelope(signals: rows.map { |row| public_signal(row) }, total: total,
                  limit: limit, offset: offset, next_offset: offset + limit < total ? offset + limit : nil)
       end
 
@@ -138,6 +138,13 @@ module Muni
       end
 
       private
+
+      def public_signal(row)
+        payload = JSON.parse(row[:payload])
+        # Historical signals may predate redaction at collection time.
+        payload['error'] = Muni::Status.public_error(payload['error']) if payload.key?('error')
+        row.merge(payload: payload)
+      end
 
       def publication_change_revisions(payload)
         id = payload.dig('evidence', 'id')

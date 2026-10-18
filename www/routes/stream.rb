@@ -29,31 +29,21 @@ module Muni
           cache_control :no_cache
           headers 'X-Accel-Buffering' => 'no'
 
-          stream(:keep_open) do |out|
-            stream_loop(out, source_slugs, hall)
-          rescue IOError
-            out.close
-          end
+          # EventSource reconnects after this finite response. Never park a Puma
+          # worker waiting for new records or for an idle client to disconnect.
+          now = Time.now.utc
+          rows = stream_rows(source_slugs, hall, stream_cursor(now))
+          frames = rows.reverse.map { |row| "data: #{JSON.dump(row.to_h)}\n\n" }
+          "retry: 15000\n\n#{frames.join}id: #{now.iso8601(6)}\n\n"
         end
 
-        def stream_loop(out, source_slugs, hall)
-          cursor = Time.now.utc
-          beats_cursor = Muni::Store.last_beats_log_id
-          idle_polls = 0
-          floor = ENV.fetch('MUNI_SSE_INTERVAL', '2').to_f
-
-          loop do
-            current_beats = Muni::Store.last_beats_log_id
-            beats_changed = current_beats > beats_cursor
-            beats_cursor = current_beats if beats_changed
-
-            rows = stream_rows(source_slugs, hall, cursor)
-            cursor = Time.now.utc if rows.any?
-            idle_polls = rows.any? ? 0 : idle_polls + 1
-            rows.reverse_each { |r| out << "data: #{JSON.dump(r.to_h)}\n\n" }
-
-            sleep(stream_sleep(floor, idle_polls, beats_changed))
-          end
+        def stream_cursor(now)
+          value = request.env['HTTP_LAST_EVENT_ID'].to_s
+          cursor = value.empty? ? now - 30 : Time.iso8601(value)
+          # Bound reconnect queries, including client-supplied stale/future IDs.
+          cursor.clamp(now - 60, now)
+        rescue ArgumentError
+          now - 30
         end
 
         def stream_rows(source_slugs, hall, cursor)
@@ -65,12 +55,6 @@ module Muni
             Muni::Store.query(source.emits, **query)
           end
           Muni::View.merge_rows(rows, 50)
-        end
-
-        def stream_sleep(floor, idle_polls, beats_changed)
-          return floor if beats_changed || idle_polls.zero?
-
-          [floor * (2**idle_polls), 30].min
         end
       end
     end
