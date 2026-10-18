@@ -99,6 +99,15 @@ module Muni
           erb :meetings, layout: :layout
         end
 
+        get '/transit' do
+          @hall = page_hall!
+          response.set_cookie('hall', value: @hall.slug, path: '/', http_only: false)
+          @categories = Muni::View.for_hall(@hall.slug)
+          @transit_app = true
+          configure_map!
+          erb :transit, layout: :layout
+        end
+
         get '/about' do
           @hall = page_hall!
           response.set_cookie('hall', value: @hall.slug, path: '/', http_only: false)

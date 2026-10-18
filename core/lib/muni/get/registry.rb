@@ -193,6 +193,13 @@ module Muni
           providers:     {
             cambridge: P.new(key: :cambridge, source_slug: 'cambridge/meetings', record_slug: 'meetings')
           }
+        ),
+        Domain.new(
+          slug:          :transit,
+          title:         'MBTA Rapid Transit & Commuter Rail',
+          aliases:       %w[mbta trains subway],
+          requires_zone: false,
+          providers:     {}
         )
       ].freeze
 
@@ -247,7 +254,10 @@ module Muni
           empty_message: 'No food truck schedules yet' },
         { slug: :events, section: 'Events', title: 'Events', icon: 'calendar', default_widget: :list,
           source_slugs: %w[cambridge/city_calendar cambridge/tourism_events],
-          empty_message: 'No official city events in this window.' }
+          empty_message: 'No official city events in this window.' },
+        { slug: :transit, section: 'Mobility', title: 'Transit', icon: 'route', default_widget: :map,
+          source_slugs: %w[],
+          empty_message: 'No active transit alerts reported.' }
       ].freeze
 
       class << self

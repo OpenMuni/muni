@@ -57,7 +57,7 @@ fi
 echo "==> Preparing local data directories"
 mkdir -p data/db data/tiles tmp/dev .muni/bin
 
-muni_get_commands=(311 police permits crashes trees parks food-trucks)
+muni_get_commands=(311 police permits crashes trees parks food-trucks transit)
 wrapper_sources=(cli/exe/muni)
 for command in "${muni_get_commands[@]}"; do
   wrapper_sources+=("cli/exe/muni-get-$command")

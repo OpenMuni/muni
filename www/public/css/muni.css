@@ -3690,3 +3690,32 @@ a {
 
 
 }
+
+/* Transit Integration (TeaTrak) */
+.shell--transit {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: #0b0f19;
+}
+
+.transit-shell__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.transit-viewport {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  background-color: #0b0f19;
+}

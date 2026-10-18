@@ -142,6 +142,27 @@ module Muni
         rescue Muni::Data::NotFound => e
           halt 404, JSON.dump(error: e.message)
         end
+
+        # Transit (MBTA) API endpoints
+        get '/api/transit/stations' do
+          JSON.dump(Muni::Transit.stations(hall: params[:hall]).map(&:to_h))
+        end
+
+        get '/api/transit/stations.geojson' do
+          JSON.dump(Muni::Transit.geojson(hall: params[:hall]))
+        end
+
+        get '/api/transit/performance' do
+          JSON.dump(Muni::Transit.performance(hall: params[:hall]))
+        end
+
+        get '/api/transit/predictions/:stop_id' do
+          JSON.dump(Muni::Transit.predictions(stop_id: params[:stop_id]))
+        end
+
+        get '/api/transit/alerts' do
+          JSON.dump(Muni::Transit.alerts(route: params[:route]))
+        end
       end
     end
   end

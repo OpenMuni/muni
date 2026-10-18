@@ -68,6 +68,7 @@ The launch collector commands are intentionally limited to:
 - `muni-get-trees`
 - `muni-get-parks`
 - `muni-get-food-trucks`
+- `muni-get-transit`
 
 `./dev` runs the local loop: migrate SQLite, seed every source for both Cambridge
 and Boston from the shared Beat catalog, compute each Hall's analytics and
@@ -95,6 +96,9 @@ muni-get-crashes cambridge,ma --persist --json -y
 muni-get-trees cambridge,ma --persist --json -y
 muni-get-parks cambridge,ma --persist --json -y
 muni-get-food-trucks cambridge,ma --persist --json -y
+muni-get-transit --hall=cambridge --json
+muni-get-transit --station=place-hvd
+muni-get-transit --performance --hall=boston
 
 # Zone: positional `cambridge,ma`, `--zone` / `--city`, or MUNI_ZONE=cambridge.
 # Add only these collector commands to cron with `--persist`.
@@ -151,6 +155,30 @@ data, and hard-to-find source records are useful contributions. Start with
 and [GOVERNANCE.md](GOVERNANCE.md) for how community proposals are reviewed.
 See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations.
 Report security concerns privately using [SECURITY.md](SECURITY.md). The [public release gate](docs/PUBLIC_RELEASE_GATE.md) records decisions pending before repository visibility changes.
+
+## MBTA Transit Tracking & Performance (TeaTrak)
+
+Muni integrates the real-time vehicle radar, station arrival boards, and historical punctuality tracking functionality of the **TeaTrak** project into a unified municipal transit interface under `/transit`.
+
+- **Web Application Integration**:
+  - The compiled production React + Canvas bundle from TeaTrak is mounted directly inside Muni's web shell (`www/views/transit.erb`) within `#root.transit-viewport`.
+  - The view maintains Muni's persistent navigation rail, top bar, and municipality switcher (`/?hall=cambridge` and `/?hall=boston`), preventing viewport clipping and double scrollbars.
+- **Municipality Scoping & Live Map**:
+  - The live map visualizes the entire Greater Boston MBTA system (Red, Orange, Blue, Green Line branches B/C/D/E, Mattapan Trolley, and Commuter Rail lines) while dynamically highlighting stations belonging to the active municipality (`window.MUNI_HALL`).
+  - Cambridge stations (Alewife, Porter, Harvard, Central, Kendall/MIT, Lechmere) are highlighted in emerald green with `🏛️` tags, while Boston stations receive glowing blue halos with `🏙️` tags.
+- **On-Time Performance (OTP) & Benchmarks**:
+  - The statistics dashboard provides corridor-level breakdown filters for **Cambridge Corridors** (Red Line, Fitchburg Line, Green D/E), **Boston Corridors** (Subway lines, Commuter Rail network), and an **All MBTA System** overview with slow-zone removal progress and delay causes.
+- **Opt-In Audio & Notifications**:
+  - Audio train arrival chimes (`TransitChimeSynth`) default strictly to **muted**. Chimes only play if the user explicitly un-mutes audio via the top-bar button.
+  - Browser notifications for home stations strictly check `Notification.permission === 'granted'` and require an explicit opt-in button click before requesting system notification permissions.
+- **API & Station Aliasing**:
+  - Upstream queries use MBTA V3 API open endpoints anonymously without hardcoded keys. An optional `MBTA_API_KEY` environment variable can be set for higher rate limits (1,000 req/min).
+  - Bidirectional alias mapping in `Muni::Transit::Stations` bridges standard MBTA GTFS IDs (e.g. `place-cntrm`, `place-coecl`) with canvas coordinate placeholders (e.g. `place-[#00000]`, `place-[#00006]`).
+- **Endpoints & CLI**:
+  - Web: `GET /transit?hall=cambridge`, `GET /transit?hall=boston`
+  - REST: `GET /api/transit/stations(.geojson)`, `/api/transit/performance`, `/api/transit/predictions/:stop_id`, `/api/transit/alerts`
+  - CLI: `muni-get-transit [--hall=...] [--station=...] [--performance] [--alerts] [--json]`
+  - MCP: `regional_transit_stations`, `regional_transit_performance`, `regional_transit_arrivals`, `regional_transit_alerts` in `mcp/regional/server.py`.
 
 ## Water Quality (optional)
 

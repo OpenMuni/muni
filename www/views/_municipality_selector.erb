@@ -1,7 +1,10 @@
-<% water_region = @water_region == true %>
+<%
+  water_region = @water_region == true
+  form_target = (defined?(request) && request&.respond_to?(:path_info) && !request.path_info.to_s.empty?) ? request.path_info : '/'
+%>
 <div class="brand">
   <a class="brand__word brand__home" href="<%= water_region ? '/water/charles' : "/?hall=#{@hall.slug}" %>" aria-label="Muni home">Muni</a>
-  <form class="municipality-selector" method="get" action="/"
+  <form class="municipality-selector" method="get" action="<%= form_target %>"
         data-selected="<%= water_region ? 'Charles River' : Rack::Utils.escape_html(@hall.name) %>">
     <select name="hall" aria-label="<%= water_region ? 'Region' : 'Municipality' %>"
             onchange="if (this.value === 'charles') { window.location.assign('/water/charles'); } else { this.form.requestSubmit(); }">

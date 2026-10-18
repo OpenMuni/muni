@@ -282,6 +282,27 @@ module Muni
       def category_records(slug, limit: nil)
         cat = Muni::View.find(slug) or raise NotFound, 'unknown category'
         lim = query_limit(limit || params['limit'])
+        if slug.to_s == 'transit'
+          hall = params['hall'] || 'cambridge'
+          stations = Muni::Transit.stations(hall: hall)
+          return stations.first(lim).map do |s|
+            {
+              'id'            => s.id,
+              'external_id'   => s.id,
+              'name'          => s.name,
+              'code'          => s.code,
+              'routes'        => s.routes,
+              'lines'         => s.routes.join(', '),
+              'is_transfer'   => s.is_transfer,
+              'hall'          => s.hall,
+              'lat'           => s.lat,
+              'lng'           => s.lng,
+              'category'      => 'transit',
+              '_record_class' => 'Muni::Transit::Station',
+              '_source_slug'  => 'regional/mbta'
+            }
+          end
+        end
         pair_limit = public_food_truck_category?(cat) || default_service_request_category?(cat) ? 5_000 : lim
         pairs = category_pairs(cat, params['hall'], limit: pair_limit)
         return food_truck_group_payloads(pairs).first(lim) if public_food_truck_category?(cat)
@@ -296,6 +317,8 @@ module Muni
       end
 
       def category_geo(slug, limit: nil)
+        return Muni::Transit.geojson(hall: params['hall']) if slug.to_s == 'transit'
+
         cat = Muni::View.find(slug) or raise NotFound, 'unknown category'
         lim = query_limit(limit || params['limit'], max: geo_limit_max(slug))
         pair_limit = default_service_request_category?(cat) ? 5_000 : lim
@@ -305,6 +328,8 @@ module Muni
       end
 
       def category_facets(slug)
+        return [] if slug.to_s == 'transit'
+
         cat = Muni::View.find(slug) or raise NotFound, 'unknown category'
         hall = params['hall']
         Muni::View.category_filter_definitions(cat.slug, hall).filter_map do |definition|
