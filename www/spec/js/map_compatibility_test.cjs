@@ -72,3 +72,24 @@ test('retry resets style readiness and restores data on the new style event', ()
   assert.equal(shell._mapStyleLoaded, true);
   assert.equal(refreshed, 1);
 });
+
+test('cluster labels use the basemap font or the available Protomaps fallback', () => {
+  for (const [styleLayers, expected] of [
+    [[], ['Noto Sans Regular']],
+    [[{layout: {'text-font': ['get', 'font']}}], ['Noto Sans Regular']],
+    [[{layout: {'text-font': ['Roboto Regular']}}], ['Roboto Regular']]
+  ]) {
+    const {shell} = fixture();
+    const layers = [];
+    shell._mapStyleLoaded = true;
+    shell.map = {
+      getStyle: () => ({layers: styleLayers}), getSource: () => null, getLayer: () => null,
+      addSource: () => {}, addLayer: layer => layers.push(layer), on: () => {}
+    };
+    shell.useCluster = () => true;
+    shell.installGeoLayer({type: 'FeatureCollection', features: []});
+    const label = layers.find(layer => layer.id === 'records-cluster-count');
+    assert.ok(label, 'A cluster label layer must be installed');
+    assert.deepEqual(Array.from(label.layout['text-font']), expected);
+  }
+});

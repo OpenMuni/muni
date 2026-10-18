@@ -1390,6 +1390,15 @@ window.muniShell = function ({ hall, category }) {
       return { ...geojson, features };
     },
 
+    clusterTextFont() {
+      const layers = this.rawMap()?.getStyle?.()?.layers || [];
+      const expressions = new Set(['get', 'literal', 'match', 'case', 'coalesce', 'step', 'interpolate', 'let', 'var']);
+      const fonts = layers.map(layer => layer.layout?.['text-font']).find(value =>
+        Array.isArray(value) && value.length && !expressions.has(value[0]) &&
+        value.every(font => typeof font === 'string'));
+      return fonts || ['Noto Sans Regular'];
+    },
+
     installGeoLayer(geojson) {
       if (!this.mapStyleReady()) return;
       const theme = this.mapTheme();
@@ -1456,7 +1465,7 @@ window.muniShell = function ({ hall, category }) {
             type: 'symbol',
             source: 'records-points',
             filter: ['has', 'point_count'],
-            layout: { 'text-field': '{point_count_abbreviated}', 'text-size': 11 },
+            layout: { 'text-field': '{point_count_abbreviated}', 'text-font': this.clusterTextFont(), 'text-size': 11 },
             paint: { 'text-color': '#ffffff' }
           });
         }
