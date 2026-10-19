@@ -129,7 +129,7 @@ source list and future-source criteria.
 
 ## Self-hosting
 
-You can run Muni locally with `./setup` and `./dev` without a Fly account.
+You can run Muni locally with `./setup` and `./dev` without an AWS account.
 For an independent deployment, use your own app name, domain, persistent SQLite
 volume, credentials, and map provider. Check each data source's terms and rate
 limits. Start with [self-hosting guidance](docs/SELF_HOSTING.md).
