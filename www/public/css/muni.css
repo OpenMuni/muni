@@ -1032,6 +1032,31 @@ a {
 .row__dot.closed       { background: #14ae5c; }
 .row__dot.pending      { background: #d4ad00; }
 .row__dot.archived     { background: #8a8f98; }
+.row__dot.map_acknowledged { background: #15803d; }
+.row__dot.map_open { background: #d4a500; }
+.row__dot.map_no_recent_update { background: #c2413b; }
+.row__dot.map_other_active, .row__dot.history { background: #64748b; }
+
+.list-pane__311-scope { display: flex; gap: 4px; padding: 8px 12px 0; }
+.list-pane__311-scope button { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 6px 9px; cursor: pointer; }
+.list-pane__311-scope button.is-active { background: #e8f1ed; border-color: #15803d; font-weight: 600; }
+.list-pane__311-context { margin: 5px 12px 8px; font-size: 12px; }
+.list-pane__load-more { margin: 8px 12px 12px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; cursor: pointer; }
+.list-pane__rows .row[role="button"]:focus-visible { outline: 3px solid #1d4ed8; outline-offset: -3px; }
+.map-311-guide { position: absolute; z-index: 2; top: 12px; left: 12px; max-width: min(330px, calc(100% - 24px)); padding: 9px 11px; border-radius: 8px; background: #fff; box-shadow: 0 2px 12px #0002; display: grid; gap: 4px; font-size: 12px; }
+.map-311-guide__legend { display: grid; gap: 3px; margin-top: 3px; }
+.map-311-guide__legend span { display: flex; align-items: center; gap: 6px; }
+.map-311-dot { display: inline-block; flex: none; width: 12px; height: 12px; border: 1px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px #64748b; }
+.map-311-dot--green { background: #15803d; }
+.map-311-dot--yellow { background: #d4a500; }
+.map-311-dot--red { background: #c2413b; }
+.map-311-dot--grey { background: #64748b; }
+.map-nearby { position: absolute; z-index: 4; bottom: 55px; left: 12px; width: min(330px, calc(100% - 24px)); max-height: 40vh; overflow: auto; padding: 10px; border-radius: 8px; background: #fff; box-shadow: 0 4px 18px #0003; }
+.map-nearby > button { float: right; }
+.map-nearby ul { list-style: none; padding: 0; margin: 6px 0 0; }
+.map-nearby li button { display: block; width: 100%; padding: 8px; text-align: left; border: 0; background: transparent; cursor: pointer; }
+.map-nearby li button:focus-visible, .map-nearby li button:hover { background: #e8f1ed; }
+@media (max-width: 700px) { .map-311-guide { top: 8px; left: 8px; max-width: calc(100% - 16px); } .map-311-guide__legend { grid-template-columns: 1fr 1fr; } }
 .row__dot.fatal        { background: #991b1b; }
 .row__dot.injury       { background: #ea580c; }
 .row__dot.no_injury    { background: #6b7280; }

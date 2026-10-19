@@ -88,12 +88,16 @@ module Muni
           JSON.dump(Muni::Data.category_records(slug: params[:slug], hall: params[:hall], params: params))
         rescue Muni::Data::NotFound => e
           halt 404, JSON.dump(error: e.message)
+        rescue Muni::Data::Error => e
+          halt 400, JSON.dump(error: e.message)
         end
 
         get '/api/category/:slug/geo' do
           JSON.dump(Muni::Data.category_geo(slug: params[:slug], hall: params[:hall], params: params))
         rescue Muni::Data::NotFound => e
           halt 404, JSON.dump(error: e.message)
+        rescue Muni::Data::Error => e
+          halt 400, JSON.dump(error: e.message)
         end
 
         get '/api/category/:slug/facets' do
