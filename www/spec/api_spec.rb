@@ -837,7 +837,7 @@ RSpec.describe Muni::Www::App do
     case_type_facet = facets.find { |f| f['name'] == 'case_type' }
     expect(time_facet['label']).to eq('Time')
     expect(time_facet['default']).to eq('active')
-    expect(time_facet['values']).to eq(%w[active latest 1d 2d 7d 14d 30d 90d])
+    expect(time_facet['values']).to eq(%w[active latest 1d 2d 7d 14d 30d 90d all])
     expect(time_facet['source_anchored']).to be(true)
     expect(status_facet['label']).to eq('Status')
     expect(status_facet['values']).to include('Open')
