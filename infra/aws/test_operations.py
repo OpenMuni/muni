@@ -1,6 +1,9 @@
 """Synthetic backups and mocked host/AWS operations; never touches real disks."""
 import importlib.util
 import json
+import sys
+import hashlib
+from types import SimpleNamespace
 import os
 from pathlib import Path
 import sqlite3
@@ -17,6 +20,7 @@ def load(name, filename):
     return module
 
 
+sys.path.insert(0, str(Path(__file__).parent))
 backup = load('backup', 'backup.py')
 monitor = load('monitor', 'monitor.py')
 volume = load('volume', 'prepare-volume.py')
@@ -34,6 +38,16 @@ class BackupTests(unittest.TestCase):
         self.db.execute("INSERT INTO sample VALUES ('synthetic')")
         self.db.commit()
         self.cache = self.data / 'backups' / 'offsite'
+        self.mount = patch.object(backup.os.path, 'ismount', return_value=True)
+        self.mount.start()
+        self.addCleanup(self.mount.stop)
+        self.space = patch.object(backup.shutil, 'disk_usage', return_value=SimpleNamespace(
+            total=60 * 1024**3, free=30 * 1024**3))
+        self.space.start()
+        self.addCleanup(self.space.stop)
+        self.verify = patch.object(backup, 'verify_remote')
+        self.verify.start()
+        self.addCleanup(self.verify.stop)
 
     def test_online_wal_backup_is_restorable_and_checksummed(self):
         import hashlib
@@ -88,17 +102,128 @@ class BackupTests(unittest.TestCase):
             backup.backup(self.data, 'example-backups')
         self.assertFalse((self.data / 'muni.sqlite3').exists())
 
-    def test_success_prunes_only_expired_backup_files(self):
+    def test_repeated_same_day_runs_keep_two_and_preserve_unknown_files(self):
         self.cache.mkdir(parents=True)
-        for name in ['old.sqlite3', 'old.sqlite3.sha256', 'keep.txt']:
-            item = self.cache / name
-            item.touch()
-            os.utime(item, (1, 1))
+        old = self.cache / '20261001T000000Z.sqlite3'
+        old.write_text('legacy without verified receipt')
+        with patch.object(backup, 'upload'):
+            for _ in range(4):
+                backup.backup(self.data, 'example-backups')
+        self.assertEqual(len(list(self.cache.glob('*.verified.json'))), 2)
+        self.assertEqual(len(list(self.cache.glob('*.sqlite3'))), 3)
+        self.assertTrue(old.exists())
+
+    def test_missing_mount_never_creates_backup_directory(self):
+        with patch.object(backup.os.path, 'ismount', return_value=False):
+            with self.assertRaisesRegex(RuntimeError, 'mounted'):
+                backup.backup(self.data, 'example-backups')
+        self.assertFalse(self.cache.exists())
+
+    def test_insufficient_space_preserves_good_backups(self):
         with patch.object(backup, 'upload'):
             backup.backup(self.data, 'example-backups')
-        self.assertFalse((self.cache / 'old.sqlite3').exists())
-        self.assertFalse((self.cache / 'old.sqlite3.sha256').exists())
-        self.assertTrue((self.cache / 'keep.txt').exists())
+        before = sorted(self.cache.glob('*.sqlite3'))
+        with patch.object(backup.shutil, 'disk_usage', return_value=SimpleNamespace(total=60*1024**3, free=1)):
+            with self.assertRaisesRegex(RuntimeError, 'space'):
+                backup.backup(self.data, 'example-backups')
+        self.assertEqual(sorted(self.cache.glob('*.sqlite3')), before)
+        self.assertIn('last_failure_at', json.loads((self.cache / 'status.json').read_text()))
+
+    def test_overlap_is_rejected_without_changing_status(self):
+        import fcntl
+        self.cache.mkdir(parents=True)
+        with (self.cache / '.lock').open('a') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with self.assertRaises(BlockingIOError):
+                backup.backup(self.data, 'example-backups')
+        self.assertFalse((self.cache / 'status.json').exists())
+
+    def test_interrupted_publication_does_not_prune_or_advance_success(self):
+        with patch.object(backup, 'upload'):
+            backup.backup(self.data, 'example-backups')
+            previous = json.loads((self.cache / 'status.json').read_text())
+            original = backup.atomic_json
+            def fail_status(path, value):
+                if path.name == 'status.json':
+                    raise OSError('interrupted publication')
+                original(path, value)
+            with patch.object(backup, 'atomic_json', side_effect=fail_status):
+                with self.assertRaises(OSError):
+                    backup.backup(self.data, 'example-backups', keep=1)
+        self.assertEqual(json.loads((self.cache / 'status.json').read_text()), previous)
+        self.assertEqual(len(list(self.cache.glob('*.sqlite3'))), 2)
+
+    def test_checksum_failure_never_marks_success(self):
+        with patch.object(backup, 'upload'), patch.object(backup, 'verify_remote', side_effect=RuntimeError('checksum')):
+            with self.assertRaises(RuntimeError):
+                backup.backup(self.data, 'example-backups')
+        self.assertNotIn('verified_at', json.loads((self.cache / 'status.json').read_text()))
+        self.assertEqual(list(self.cache.glob('*.sqlite3')), [])
+
+    def test_both_asset_directories_are_synced_without_remote_deletions(self):
+        for name in ['tiles', 'report_media']:
+            (self.data / name).mkdir()
+        with patch.object(backup, 'upload'), patch.object(backup.subprocess, 'run') as run:
+            backup.backup(self.data, 'example-backups')
+        destinations = [call.args[0][5] for call in run.call_args_list]
+        self.assertEqual(destinations, ['s3://example-backups/tiles/', 's3://example-backups/report_media/'])
+        self.assertTrue(all('--delete' not in call.args[0] for call in run.call_args_list))
+
+    def test_pending_cleanup_requires_ownership_and_known_contents(self):
+        self.cache.mkdir(parents=True)
+        for name in ['owned', 'unknown', 'extra']:
+            directory = self.cache / ('.pending-' + name)
+            directory.mkdir()
+            if name != 'unknown':
+                (directory / '.muni-backup-owned').write_text('1')
+            if name == 'extra':
+                (directory / 'unrelated').touch()
+        backup.clean_pending(self.cache)
+        self.assertFalse((self.cache / '.pending-owned').exists())
+        self.assertTrue((self.cache / '.pending-unknown').exists())
+        self.assertTrue((self.cache / '.pending-extra').exists())
+
+
+class RemoteVerificationTests(unittest.TestCase):
+    def test_old_cli_upload_falls_back_without_weakening_verification(self):
+        failed = subprocess.CompletedProcess([], 255, '', 'Unknown options: --checksum-algorithm, SHA256')
+        with patch.object(backup.subprocess, 'run', side_effect=[failed, None]) as run:
+            backup.upload(Path('/snapshot'), 's3://bucket/db/snapshot')
+        self.assertEqual(run.call_count, 2)
+        self.assertNotIn('--checksum-algorithm', run.call_args.args[0])
+
+    def test_old_cli_head_falls_back_to_stream_verification(self):
+        failed = subprocess.CalledProcessError(255, 'aws', stderr='Unknown options: --checksum-mode, ENABLED')
+        with patch.object(backup.subprocess, 'check_output', side_effect=[failed, '{"ContentLength": 8}']):
+            with self.assertRaisesRegex(RuntimeError, 'size'):
+                backup.verify_remote('bucket', 'key', 7, '0' * 64)
+
+    def test_full_object_checksum_and_size_are_required(self):
+        import base64
+        digest = hashlib.sha256(b'example').hexdigest()
+        head = {'ContentLength': 7, 'ChecksumType': 'FULL_OBJECT',
+                'ChecksumSHA256': base64.b64encode(bytes.fromhex(digest)).decode()}
+        with patch.object(backup.subprocess, 'check_output', return_value=json.dumps(head)):
+            backup.verify_remote('bucket', 'key', 7, digest)
+            with self.assertRaisesRegex(RuntimeError, 'size'):
+                backup.verify_remote('bucket', 'key', 8, digest)
+            with self.assertRaisesRegex(RuntimeError, 'checksum'):
+                backup.verify_remote('bucket', 'key', 7, '0' * 64)
+
+    def test_composite_checksum_streams_body_and_checks_exit_status(self):
+        real_popen = subprocess.Popen
+        head = {'ContentLength': 7, 'ChecksumType': 'COMPOSITE', 'ChecksumSHA256': 'composite-1'}
+        for body, exit_code, valid in [('example', 0, True), ('changed', 0, False), ('example', 1, False)]:
+            def process(*args, **kwargs):
+                return real_popen([sys.executable, '-c', f"import sys; sys.stdout.write({body!r}); sys.exit({exit_code})"],
+                                  stdout=kwargs['stdout'], stderr=kwargs['stderr'])
+            with patch.object(backup.subprocess, 'check_output', return_value=json.dumps(head)), \
+                    patch.object(backup.subprocess, 'Popen', side_effect=process):
+                if valid:
+                    backup.verify_remote('bucket', 'key', 7, hashlib.sha256(b'example').hexdigest())
+                else:
+                    with self.assertRaises(RuntimeError):
+                        backup.verify_remote('bucket', 'key', 7, hashlib.sha256(b'example').hexdigest())
 
 
 class VolumeTests(unittest.TestCase):
@@ -131,6 +256,18 @@ class MonitorTests(unittest.TestCase):
         self.assertEqual(payload['data_mounted'], 0)
         self.assertEqual(payload['app_healthy'], 0)
         self.assertGreater(payload['backup_age_seconds'], 93600)
+
+    def test_age_uses_capture_not_upload_and_invalid_state_is_overdue(self):
+        from backup_state import atomic_json
+        with tempfile.TemporaryDirectory() as root, patch.object(monitor.os.path, 'ismount', return_value=True), \
+                patch.object(monitor, 'health', return_value=1), patch.object(monitor.time, 'time', return_value=1792411200):
+            data = Path(root)
+            state = data / 'backups' / 'offsite' / 'status.json'
+            atomic_json(state, {'schema_version': 1, 'captured_at': '2026-10-19T10:00:00Z',
+                               'verified_at': '2026-10-19T11:00:00Z'})
+            self.assertEqual(monitor.metrics(data)['backup_age_seconds'], 7200)
+            state.write_text('invalid')
+            self.assertGreater(monitor.metrics(data)['backup_age_seconds'], 93600)
 
     def test_failed_stream_creation_is_not_silenced(self):
         result = subprocess.CompletedProcess([], 1, '', 'AccessDeniedException')

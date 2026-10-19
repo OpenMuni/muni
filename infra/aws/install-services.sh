@@ -6,7 +6,7 @@ mountpoint -q /data || { echo "/data must be mounted" >&2; exit 1; }
 source_dir="$(cd "$(dirname "$0")" && pwd)"
 install -d -m 0700 /etc/muni
 install -d -m 0755 /opt/muni
-for script in backup.py monitor.py health-check.sh backup-alert.sh; do
+for script in backup.py backup_state.py monitor.py health-check.sh backup-alert.sh; do
   install -m 0755 "$source_dir/$script" "/opt/muni/$script"
 done
 for unit in "$source_dir"/muni-*.service "$source_dir"/muni-*.timer; do
