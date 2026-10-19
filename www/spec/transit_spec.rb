@@ -34,6 +34,10 @@ RSpec.describe Muni::Www::App do
     get '/mobility/subway'
     body = last_response.body
     expect(body).to include('id="subway-sidebar"', 'Station arrivals', 'Service alerts', 'id="subway-map"')
+    expect(body).to include(
+      'data-icon="caution"', "selectView('alerts')", "selectView('arrivals')",
+      "x-show=\"view === 'arrivals'\"", "x-show=\"view === 'alerts'\""
+    )
     expect(body.index('id="subway-sidebar"')).to be < body.index('id="subway-map"')
     expect(body).not_to include(
       '<h1>MBTA Subway', 'Red, Orange, Blue, Green B/C/D/E, and Mattapan',

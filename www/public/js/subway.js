@@ -15,7 +15,7 @@
     let vehicleMarkers = [];
     let timer = null;
     return {
-      stations:[], vehicles:[], predictions:[], alerts:[], selectedStation:'', listOpen:false,
+      stations:[], vehicles:[], predictions:[], alerts:[], selectedStation:'', view:'arrivals', listOpen:false,
       homeStation:localStorage.getItem('muni-subway-home') || '',
       stationsFetchedAt:'', vehiclesFetchedAt:'', predictionsFetchedAt:'', alertsFetchedAt:'',
       stationsError:'', vehiclesError:'', predictionsError:'', alertsError:'', mapError:'',
@@ -73,7 +73,8 @@
           this.predictionsFetchedAt = result.fetched_at; this.predictionsError = '';
         } catch (_) { if (station === this.selectedStation) { this.predictions = []; this.predictionsFetchedAt = ''; this.predictionsError = 'Arrivals unavailable.'; } }
       },
-      selectStation() { this.listOpen = true; this.predictions = []; this.predictionsFetchedAt = ''; this.loadPredictions(); this.renderMap(); },
+      selectView(view) { this.view = view; this.listOpen = true; },
+      selectStation() { this.selectView('arrivals'); this.predictions = []; this.predictionsFetchedAt = ''; this.loadPredictions(); this.renderMap(); },
       setHomeStation() { this.homeStation = this.selectedStation; localStorage.setItem('muni-subway-home', this.homeStation); },
       visibleVehicles() { return this.vehicles.filter(v => fresh(v.updated_at, Date.now())); },
       routeLabel(value) { return value?.replace('Green-', 'Green ') || 'Train'; },
