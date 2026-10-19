@@ -846,7 +846,7 @@ module Muni
       def perform_maintenance!(now: Time.now.utc)
         return unless maintenance_enabled?
 
-        backup!(now: now) unless meta('maintenance:last_backup') == now.strftime('%Y-%m-%d')
+        backup!(now: now) if backup_mode == 'local' && meta('maintenance:last_backup') != now.strftime('%Y-%m-%d')
         week = now.strftime('%G-W%V')
         return unless now.wday.zero? && meta('maintenance:last_optimize') != week
 
@@ -936,6 +936,13 @@ module Muni
       def maintenance_enabled?
         default = ENV['RACK_ENV'].to_s == 'production' ? '1' : '0'
         ENV.fetch('MUNI_MAINTENANCE_ENABLED', default) == '1'
+      end
+
+      def backup_mode
+        mode = ENV.fetch('MUNI_BACKUP_MODE', 'local')
+        raise ArgumentError, 'Invalid backup mode' unless %w[local external disabled].include?(mode)
+
+        mode
       end
 
       def time_column(klass_or_schema, preferred: nil)
