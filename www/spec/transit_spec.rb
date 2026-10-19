@@ -3,96 +3,48 @@
 require 'spec_helper'
 
 RSpec.describe Muni::Www::App do
-  def app
-    described_class
-  end
+  def app = described_class
 
   before { Muni::Store.ensure_tables! }
 
-  describe 'GET /transit' do
-    it 'renders the transit command center shell for Cambridge' do
-      get '/transit?hall=cambridge'
-
-      expect(last_response).to be_ok
-      expect(last_response.body).to include('id="root"')
-      expect(last_response.body).to include('transit-viewport')
-      expect(last_response.body).to include('/transit/assets/index.js')
-      expect(last_response.body).to include('/transit/assets/index.css')
-      expect(last_response.body).to include('window.MUNI_HALL = "cambridge"')
+  it 'uses the regional subway path and redirects legacy URLs' do
+    %w[/transit /transit/subway].each do |path|
+      get path
+      expect(last_response.status).to eq(301)
+      expect(last_response.headers['location']).to end_with('/mobility/subway')
     end
-
-    it 'renders the transit shell for Boston' do
-      get '/transit?hall=boston'
-
-      expect(last_response).to be_ok
-      expect(last_response.body).to include('id="root"')
-      expect(last_response.body).to include('window.MUNI_HALL = "boston"')
-    end
+    get '/mobility/subway'
+    expect(last_response).to be_ok
+    expect(last_response.body).to include('MBTA Subway', '/js/subway.js')
+    expect(last_response.body).not_to include('/transit/assets/index.js')
   end
 
-  describe 'GET /api/transit/stations' do
-    it 'returns stations scoped by hall' do
-      get '/api/transit/stations?hall=cambridge'
-
-      expect(last_response).to be_ok
-      data = JSON.parse(last_response.body)
-      expect(data).to be_an(Array)
-      expect(data.length).to be >= 5
-      expect(data.map { |s| s['id'] }).to include('place-alfcl', 'place-porter', 'place-hvd', 'place-knn')
-      expect(data.all? { |s| s['hall'] == 'cambridge' }).to be true
-    end
-
-    it 'returns GeoJSON format' do
-      get '/api/transit/stations.geojson?hall=cambridge'
-
-      expect(last_response).to be_ok
-      geojson = JSON.parse(last_response.body)
-      expect(geojson['type']).to eq('FeatureCollection')
-      expect(geojson['features']).not_to be_empty
-    end
+  it 'offers city home pages in the regional selector' do
+    get '/mobility/subway'
+    expect(last_response.body).to include('action="/"', 'value="cambridge"', 'value="boston"')
+    expect(last_response.body).to include('this.form.requestSubmit()')
+    get '/?hall=boston'
+    expect(last_response).to be_ok
   end
 
-  describe 'GET /api/transit/performance' do
-    it 'returns municipal performance metrics' do
-      get '/api/transit/performance?hall=cambridge'
+  it 'returns fetch times and distinct unavailable states' do
+    allow(Muni::Transit).to receive(:stations).and_return('data' => [], 'fetched_at' => '2026-01-01T00:00:00Z')
+    get '/api/mobility/subway/stations'
+    expect(JSON.parse(last_response.body)['fetched_at']).to eq('2026-01-01T00:00:00Z')
 
-      expect(last_response).to be_ok
-      data = JSON.parse(last_response.body)
-      expect(data['hall']).to eq('cambridge')
-      expect(data['corridor_count']).to eq(4)
-      expect(data['average_otp']).to be > 80.0
-      expect(data['slow_zones_cleared']).to be > 0
-    end
-
-    it 'returns systemwide performance metrics when no hall is specified' do
-      get '/api/transit/performance'
-
-      expect(last_response).to be_ok
-      data = JSON.parse(last_response.body)
-      expect(data['overall_otp']).to eq(89.6)
-      expect(data['slow_zones_removed_systemwide']).to eq(228)
-    end
+    allow(Muni::Transit).to receive(:vehicles).and_raise(Muni::Transit::Client::Error.new('rate limited', status: 429))
+    get '/api/mobility/subway/vehicles'
+    expect(last_response.status).to eq(429)
+    expect(JSON.parse(last_response.body)).to include('error' => 'rate limited', 'data' => [], 'fetched_at' => nil)
   end
 
-  describe 'GET /api/transit/predictions/:stop_id' do
-    it 'returns prediction payload' do
-      allow(Muni::Transit).to receive(:predictions).with(stop_id: 'place-hvd').and_return({ 'data' => [] })
-      get '/api/transit/predictions/place-hvd'
-
-      expect(last_response).to be_ok
-      data = JSON.parse(last_response.body)
-      expect(data).to eq({ 'data' => [] })
-    end
-  end
-
-  describe 'GET /api/transit/alerts' do
-    it 'returns alerts payload' do
-      allow(Muni::Transit).to receive(:alerts).with(route: nil).and_return({ 'data' => [] })
-      get '/api/transit/alerts'
-
-      expect(last_response).to be_ok
-      data = JSON.parse(last_response.body)
-      expect(data).to eq({ 'data' => [] })
-    end
+  it 'serves predictions and alerts from the server' do
+    payload = { 'data' => [], 'fetched_at' => '2026-01-01T00:00:00Z' }
+    allow(Muni::Transit).to receive(:predictions).with(stop_id: 'place-harsq').and_return(payload)
+    allow(Muni::Transit).to receive(:alerts).and_return(payload)
+    get '/api/mobility/subway/predictions/place-harsq'
+    expect(JSON.parse(last_response.body)).to eq(payload)
+    get '/api/mobility/subway/alerts'
+    expect(JSON.parse(last_response.body)).to eq(payload)
   end
 end

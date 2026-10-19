@@ -4,98 +4,35 @@
 require 'muni'
 require 'optparse'
 require 'json'
-require 'time'
 
-options = {
-  json: false,
-  hall: nil,
-  station: nil,
-  performance: false,
-  alerts: false
-}
-
+options = { station: nil, vehicles: false, alerts: false, json: false }
 OptionParser.new do |opts|
-  opts.banner = 'Usage: muni-get-transit [options]'
-  opts.on('-h', '--hall HALL', 'Filter by hall (cambridge, boston)') { |v| options[:hall] = v }
-  opts.on('-s', '--station ID', 'Station ID (e.g. place-hvd, place-porter)') { |v| options[:station] = v }
-  opts.on('--performance', 'Show on-time performance summary') { options[:performance] = true }
-  opts.on('--alerts', 'Show active transit alerts') { options[:alerts] = true }
-  opts.on('--json', 'Output raw JSON') { options[:json] = true }
+  opts.banner = 'Usage: muni-get-transit [--station ID | --vehicles | --alerts] [--json]'
+  opts.on('-s', '--station ID', 'Canonical MBTA parent station ID') { |value| options[:station] = value }
+  opts.on('--vehicles', 'Show live subway vehicles') { options[:vehicles] = true }
+  opts.on('--alerts', 'Show current subway alerts') { options[:alerts] = true }
+  opts.on('--json', 'Output JSON') { options[:json] = true }
 end.parse!
 
-if options[:performance]
-  data = Muni::Transit.performance(hall: options[:hall])
+begin
+  result = if options[:station]
+             Muni::Transit.predictions(stop_id: options[:station])
+           elsif options[:vehicles]
+             Muni::Transit.vehicles
+           elsif options[:alerts]
+             Muni::Transit.alerts
+           else
+             Muni::Transit.stations
+           end
   if options[:json]
-    puts JSON.pretty_generate(data)
+    puts JSON.pretty_generate(result)
   else
-    puts "=== MBTA On-Time Performance (#{options[:hall] || 'Systemwide'}) ==="
-    if data[:average_otp]
-      puts "Corridors: #{data[:corridor_count]} lines"
-      puts "Average On-Time: #{data[:average_otp]}% (Prior Year: #{data[:prior_year_otp]}%, Δ #{data[:delta]}%)"
-      puts "Slow Zones Cleared: #{data[:slow_zones_cleared]}"
-      puts "Average Delay: #{data[:avg_delay_minutes]} min"
-    else
-      puts "Overall System On-Time: #{data[:overall_otp]}%"
-      puts "Subway On-Time: #{data[:subway_otp]}%"
-      puts "Commuter Rail On-Time: #{data[:commuter_rail_otp]}%"
-      puts "Slow Zones Cleared: #{data[:slow_zones_removed_systemwide]}"
+    puts "Fetched at #{result.fetch('fetched_at')}"
+    result.fetch('data').each do |item|
+      puts [item['id'], item['name'] || item['header'] || item['route'], item['arrival_time']].compact.join(' · ')
     end
   end
-  exit 0
-end
-
-if options[:station]
-  stn = Muni::Transit.station(options[:station])
-  preds = Muni::Transit.predictions(stop_id: options[:station])
-  if options[:json]
-    puts JSON.pretty_generate({ station: stn&.to_h, predictions: preds })
-  else
-    name = stn ? "#{stn.name} (#{stn.code})" : options[:station]
-    puts "=== Live Arrivals for #{name} ==="
-    items = preds['data'] || []
-    if items.empty?
-      puts 'No active predictions returned or station closed.'
-    else
-      items.first(6).each do |pred|
-        attrs = pred['attributes'] || {}
-        status = attrs['status'] || 'Approaching'
-        time = attrs['arrival_time'] ? Time.parse(attrs['arrival_time']).strftime('%l:%M %P') : 'Live'
-        puts "• #{status} at #{time}"
-      end
-    end
-  end
-  exit 0
-end
-
-if options[:alerts]
-  alerts = Muni::Transit.alerts
-  if options[:json]
-    puts JSON.pretty_generate(alerts)
-  else
-    puts '=== Active MBTA Alerts ==='
-    items = alerts['data'] || []
-    if items.empty?
-      puts 'No active alerts reported.'
-    else
-      items.first(10).each do |alert|
-        header = alert.dig('attributes', 'header') || 'Alert'
-        puts "• #{header}"
-      end
-    end
-  end
-  exit 0
-end
-
-# Default: List stations
-stations = Muni::Transit.stations(hall: options[:hall])
-if options[:json]
-  puts JSON.pretty_generate(stations.map(&:to_h))
-else
-  hall_title = options[:hall] ? options[:hall].capitalize : 'All'
-  puts "=== MBTA Stations (#{hall_title}) - #{stations.length} stations ==="
-  stations.each do |s|
-    marker = s.hall == 'cambridge' ? '🏛️ [Cambridge]' : (s.hall == 'boston' ? '🏙️ [Boston]' : '[Regional]')
-    routes = s.routes.join(', ')
-    puts format('%-14s %-26s %-14s %s', s.code, s.name, marker, routes)
-  end
+rescue Muni::Transit::Client::Error => e
+  warn "MBTA data unavailable: #{e.message}"
+  exit 1
 end

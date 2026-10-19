@@ -100,12 +100,17 @@ module Muni
         end
 
         get '/transit' do
-          @hall = page_hall!
-          response.set_cookie('hall', value: @hall.slug, path: '/', http_only: false)
-          @categories = Muni::View.for_hall(@hall.slug)
-          @transit_app = true
+          redirect '/mobility/subway', 301
+        end
+
+        get '/transit/subway' do
+          redirect '/mobility/subway', 301
+        end
+
+        get '/mobility/subway' do
+          @mobility_region = true
           configure_map!
-          erb :transit, layout: :layout
+          erb :subway, layout: :layout
         end
 
         get '/about' do

@@ -2,91 +2,66 @@
 
 require 'spec_helper'
 
-RSpec.describe Muni::Transit do
-  describe Muni::Transit::Stations do
-    it 'loads the comprehensive station catalog' do
-      expect(described_class.all.length).to be >= 200
+RSpec.describe Muni::Transit::Client do
+  before { described_class.clear_cache! }
+
+  it 'uses canonical parent station IDs and deduplicates route membership' do
+    stop = { 'id' => 'place-cntsq', 'attributes' => { 'name' => 'Central', 'location_type' => 1,
+                                                    'latitude' => 42.36, 'longitude' => -71.1,
+                                                    'municipality' => 'Cambridge' } }
+    allow(described_class).to receive(:pages) do |_path, params|
+      %w[Red Green-B].include?(params['filter[route]']) ? [stop] : []
     end
-
-    it 'finds stations by MBTA station ID' do
-      alewife = described_class.find('place-alfcl')
-      expect(alewife).not_to be_nil
-      expect(alewife.name).to eq('Alewife')
-      expect(alewife.routes).to eq(['Red'])
-      expect(alewife.hall).to eq('cambridge')
-
-      porter = described_class.find('place-porter')
-      expect(porter).not_to be_nil
-      expect(porter.routes).to include('Red', 'CR-Fitchburg')
-      expect(porter.is_transfer).to be true
-      expect(porter.hall).to eq('cambridge')
-
-      south_station = described_class.find('place-sstat')
-      expect(south_station).not_to be_nil
-      expect(south_station.name).to eq('South Station')
-      expect(south_station.hall).to eq('boston')
-
-      central = described_class.find('place-cntrm')
-      expect(central).not_to be_nil
-      expect(central.name).to eq('Central')
-      expect(central.hall).to eq('cambridge')
-
-      copley = described_class.find('place-coecl')
-      expect(copley).not_to be_nil
-      expect(copley.name).to eq('Copley')
-      expect(copley.hall).to eq('boston')
-    end
-
-    it 'resolves canonical MBTA GTFS IDs from canvas placeholders' do
-      expect(described_class.canonical_id('place-[#00000]')).to eq('place-cntrm')
-      expect(described_class.canonical_id('place-[#00006]')).to eq('place-coecl')
-      expect(described_class.canonical_id('place-hvd')).to eq('place-hvd')
-    end
-
-    it 'scopes stations by municipal hall' do
-      cambridge_stations = described_class.for_hall('cambridge')
-      expect(cambridge_stations.map(&:id)).to include('place-alfcl', 'place-porter', 'place-hvd', 'place-knn')
-      expect(cambridge_stations.all? { |s| s.hall == 'cambridge' }).to be true
-
-      boston_stations = described_class.for_hall('boston')
-      expect(boston_stations.map(&:id)).to include('place-sstat', 'place-north', 'place-park', 'place-dtncx')
-      expect(boston_stations.all? { |s| s.hall == 'boston' }).to be true
-    end
-
-    it 'generates valid GeoJSON FeatureCollection' do
-      geojson = described_class.to_geojson(hall: 'cambridge')
-      expect(geojson[:type]).to eq('FeatureCollection')
-      expect(geojson[:features]).not_to be_empty
-
-      first = geojson[:features].first
-      expect(first[:type]).to eq('Feature')
-      expect(first[:geometry][:type]).to eq('Point')
-      expect(first[:geometry][:coordinates].length).to eq(2)
-      expect(first[:properties][:hall]).to eq('cambridge')
-    end
+    result = described_class.stations
+    expect(result.fetch('data')).to eq([{ 'id' => 'place-cntsq', 'name' => 'Central',
+                                           'latitude' => 42.36, 'longitude' => -71.1,
+                                           'municipality' => 'Cambridge', 'routes' => %w[Red Green-B] }])
+    expect(result['fetched_at']).not_to be_nil
   end
 
-  describe Muni::Transit::Performance do
-    it 'provides systemwide on-time performance overview' do
-      overview = described_class.system_overview
-      expect(overview[:overall_otp]).to eq(89.6)
-      expect(overview[:slow_zones_removed_systemwide]).to eq(228)
-      expect(overview.dig(:top_performing_line, :name)).to eq('Fairmount Line')
-      expect(overview.dig(:most_improved_line, :name)).to eq('Red Line')
+  it 'follows MBTA pagination and rejects links to other hosts' do
+    calls = 0
+    allow(described_class).to receive(:request) do |_uri|
+      calls += 1
+      if calls == 1
+        { 'data' => [{ 'id' => 'one' }], 'links' => { 'next' => '/stops?page[offset]=100' } }
+      else
+        { 'data' => [{ 'id' => 'two' }], 'links' => { 'next' => nil } }
+      end
     end
+    expect(described_class.send(:pages, '/stops', {})).to eq([{ 'id' => 'one' }, { 'id' => 'two' }])
+    expect(calls).to eq(2)
 
-    it 'aggregates performance metrics by municipality corridor' do
-      camb = described_class.summary_for('cambridge')
-      expect(camb[:hall]).to eq('cambridge')
-      expect(camb[:corridor_count]).to eq(4)
-      expect(camb[:lines].map { |l| l[:route_id] }).to match_array(%w[Red CR-Fitchburg Green-D Green-E])
-      expect(camb[:average_otp]).to be >= 80.0
-      expect(camb[:slow_zones_cleared]).to be > 0
+    allow(described_class).to receive(:request).and_return('data'  => [],
+                                                           'links' => { 'next' => 'https://example.com/' })
+    expect { described_class.send(:pages, '/stops', {}) }.to raise_error(described_class::Error, /Invalid MBTA/)
+  end
 
-      bos = described_class.summary_for('boston')
-      expect(bos[:hall]).to eq('boston')
-      expect(bos[:corridor_count]).to be > 10
-      expect(bos[:average_otp]).to be >= 85.0
+  it 'does not cache failures or turn rate limits into empty success' do
+    calls = 0
+    allow(described_class).to receive(:pages) do
+      calls += 1
+      raise described_class::Error.new('MBTA data unavailable (HTTP 429)', status: 429)
     end
+    2.times do
+      expect { described_class.vehicles }.to raise_error(described_class::Error) { |error|
+        expect(error.status).to eq(429)
+      }
+    end
+    expect(calls).to eq(2)
+  end
+
+  it 'rejects a station ID absent from the canonical station list' do
+    expect { described_class.predictions(stop_id: 'place-[#00000]') }
+      .to raise_error(described_class::Error) { |error| expect(error.status).to eq(404) }
+  end
+
+  it 'reads alert route membership from MBTA informed entities' do
+    alert = { 'id'         => 'alert-1',
+              'attributes' => { 'header'          => 'Delay',
+                                'active_period'   => [{ 'start' => (Time.now.utc - 60).iso8601, 'end' => nil }],
+                                'informed_entity' => [{ 'route' => 'Red' }, { 'route' => 'CR-Fitchburg' }] } }
+    allow(described_class).to receive(:pages).and_return([alert])
+    expect(described_class.alerts.fetch('data').first['routes']).to eq(['Red'])
   end
 end

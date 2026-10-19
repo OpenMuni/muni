@@ -16,8 +16,7 @@ module Muni
       'Muni::Records::Crash'                => %i[crash_type location_description external_id],
       'Muni::Records::FoodTruck'            => %i[truck_name dba business_name external_id],
       'Muni::Records::MeteredParkingSpace'  => %i[space_id max_time_label external_id],
-      'Muni::Records::DigestItem'           => %i[title external_id],
-      'Muni::Transit::Station'              => %i[name code external_id]
+      'Muni::Records::DigestItem'           => %i[title external_id]
     }.freeze
 
     SUBTITLE_FIELDS = {
@@ -35,8 +34,7 @@ module Muni
       'Muni::Records::Crash'                => %i[location_description occurred_at],
       'Muni::Records::FoodTruck'            => %i[schedule_summary address items_to_be_sold business_name status],
       'Muni::Records::MeteredParkingSpace'  => %i[operation_window rate_label pay_by_phone_zone],
-      'Muni::Records::DigestItem'           => %i[summary location_name source_name],
-      'Muni::Transit::Station'              => %i[lines hall]
+      'Muni::Records::DigestItem'           => %i[summary location_name source_name]
     }.freeze
 
     DEFAULT_TITLE    = %i[case_type name permit_type crime_category crash_type species_common external_id].freeze

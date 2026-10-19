@@ -143,25 +143,26 @@ module Muni
           halt 404, JSON.dump(error: e.message)
         end
 
-        # Transit (MBTA) API endpoints
-        get '/api/transit/stations' do
-          JSON.dump(Muni::Transit.stations(hall: params[:hall]).map(&:to_h))
+        get '/api/mobility/subway/stations' do
+          subway_response { Muni::Transit.stations }
         end
 
-        get '/api/transit/stations.geojson' do
-          JSON.dump(Muni::Transit.geojson(hall: params[:hall]))
+        get '/api/mobility/subway/vehicles' do
+          subway_response { Muni::Transit.vehicles }
         end
 
-        get '/api/transit/performance' do
-          JSON.dump(Muni::Transit.performance(hall: params[:hall]))
+        get '/api/mobility/subway/predictions/:stop_id' do
+          subway_response { Muni::Transit.predictions(stop_id: params[:stop_id]) }
         end
 
-        get '/api/transit/predictions/:stop_id' do
-          JSON.dump(Muni::Transit.predictions(stop_id: params[:stop_id]))
+        get '/api/mobility/subway/alerts' do
+          subway_response { Muni::Transit.alerts }
         end
 
-        get '/api/transit/alerts' do
-          JSON.dump(Muni::Transit.alerts(route: params[:route]))
+        def subway_response
+          JSON.dump(yield)
+        rescue Muni::Transit::Client::Error => e
+          halt e.status, JSON.dump(error: e.message, data: [], fetched_at: nil)
         end
       end
     end

@@ -157,7 +157,7 @@ module Muni
 
     def self.for_hall(hall_slug)
       all.select do |c|
-        c.slug.to_sym == :transit || c.source_slugs.any? { |s| s.start_with?("#{hall_slug}/") }
+        c.source_slugs.any? { |s| s.start_with?("#{hall_slug}/") }
       end
     end
 
@@ -366,14 +366,11 @@ module Muni
 
     def self.category_row_count(category_slug, hall, counts)
       return event_row_count(hall) if event_category?(category_slug)
-      return Muni::Transit.stations(hall: hall).length if category_slug.to_s == 'transit'
 
       sources_for(category_slug, hall).sum { |s| counts[s].to_i }
     end
 
     def self.category_live?(category_slug, hall)
-      return true if category_slug.to_s == 'transit'
-
       sources_for(category_slug, hall).any? do |source_slug|
         Muni::Registry.beat(source_slug)
       end

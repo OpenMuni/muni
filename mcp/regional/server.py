@@ -1,49 +1,48 @@
-"""Muni Regional MCP server (MBTA Transit & Charles River)."""
+"""Regional MBTA subway tools backed by the standalone Muni transit CLI."""
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _shared import run  # noqa: E402
+from mcp.server.mcpserver import MCPServer
 
-try:
-    from mcp.server.mcpserver import MCPServer
-    mcp = MCPServer("muni-regional")
-except ImportError:
-    mcp = None
+ROOT = Path(__file__).resolve().parents[2]
+mcp = MCPServer("muni-regional")
 
 
-def _register_tools():
-    if not mcp:
-        return
-
-    @mcp.tool()
-    def regional_transit_stations(hall: str | None = None) -> str:
-        """List MBTA Rapid Transit and Commuter Rail stations, optionally scoped to Cambridge or Boston."""
-        args = ["get", "transit"]
-        if hall:
-            args.extend(["--hall", hall])
-        return json.dumps(run(*args))
-
-    @mcp.tool()
-    def regional_transit_performance(hall: str | None = None) -> str:
-        """Retrieve MBTA On-Time Performance (OTP), punctuality benchmarks, and delay metrics."""
-        args = ["get", "transit", "--performance"]
-        if hall:
-            args.extend(["--hall", hall])
-        return json.dumps(run(*args))
-
-    @mcp.tool()
-    def regional_transit_arrivals(station_id: str) -> str:
-        """Fetch live arrival and departure predictions for an MBTA station."""
-        return json.dumps(run("get", "transit", f"--station={station_id}"))
-
-    @mcp.tool()
-    def regional_transit_alerts() -> str:
-        """Fetch active MBTA systemwide service alerts and disruption advisories."""
-        return json.dumps(run("get", "transit", "--alerts"))
+def transit(*args: str) -> str:
+    command = ["bundle", "exec", str(ROOT / "cli" / "exe" / "muni-get-transit"), *args, "--json"]
+    result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, check=False)
+    if result.returncode:
+        raise RuntimeError(result.stderr.strip() or "MBTA data unavailable")
+    return json.dumps(json.loads(result.stdout))
 
 
-_register_tools()
+@mcp.tool()
+def regional_transit_stations() -> str:
+    """List canonical parent stations and their MBTA rapid-transit routes."""
+    return transit()
+
+
+@mcp.tool()
+def regional_transit_vehicles() -> str:
+    """List live MBTA subway vehicles and their fetch time."""
+    return transit("--vehicles")
+
+
+@mcp.tool()
+def regional_transit_arrivals(station_id: str) -> str:
+    """Get live arrival predictions for a canonical MBTA station ID."""
+    return transit("--station", station_id)
+
+
+@mcp.tool()
+def regional_transit_alerts() -> str:
+    """Get current subway service alerts."""
+    return transit("--alerts")
+
+
+if __name__ == "__main__":
+    mcp.run()

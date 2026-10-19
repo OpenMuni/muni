@@ -1,21 +1,23 @@
 <%
   water_region = @water_region == true
-  form_target = (defined?(request) && request&.respond_to?(:path_info) && !request.path_info.to_s.empty?) ? request.path_info : '/'
+  subway_region = @mobility_region == true
+  regional = water_region || subway_region
 %>
 <div class="brand">
-  <a class="brand__word brand__home" href="<%= water_region ? '/water/charles' : "/?hall=#{@hall.slug}" %>" aria-label="Muni home">Muni</a>
-  <form class="municipality-selector" method="get" action="<%= form_target %>"
-        data-selected="<%= water_region ? 'Charles River' : Rack::Utils.escape_html(@hall.name) %>">
-    <select name="hall" aria-label="<%= water_region ? 'Region' : 'Municipality' %>"
-            onchange="if (this.value === 'charles') { window.location.assign('/water/charles'); } else { this.form.requestSubmit(); }">
+  <a class="brand__word brand__home" href="<%= regional ? '/' : "/?hall=#{@hall.slug}" %>" aria-label="Muni home">Muni</a>
+  <form class="municipality-selector" method="get" action="/"
+        data-selected="<%= water_region ? 'Charles River' : (subway_region ? 'MBTA Subway' : Rack::Utils.escape_html(@hall.name)) %>">
+    <select name="hall" aria-label="<%= regional ? 'Region' : 'Municipality' %>"
+            onchange="if (this.value === 'charles') { window.location.assign('/water/charles'); } else if (this.value === 'subway') { window.location.assign('/mobility/subway'); } else { this.form.requestSubmit(); }">
       <% Muni::Hall.all.select(&:public?).sort_by(&:name).each do |hall| %>
-        <option value="<%= Rack::Utils.escape_html(hall.slug) %>"<%= ' selected' if !water_region && hall.slug == @hall.slug %>>
+        <option value="<%= Rack::Utils.escape_html(hall.slug) %>"<%= ' selected' if !regional && hall.slug == @hall.slug %>>
           <%= Rack::Utils.escape_html(hall.name) %>
         </option>
       <% end %>
       <% if Muni::Water.enabled? %>
         <option value="charles"<%= ' selected' if water_region %>>Charles River</option>
       <% end %>
+      <option value="subway"<%= ' selected' if subway_region %>>MBTA Subway</option>
     </select>
   </form>
 </div>
