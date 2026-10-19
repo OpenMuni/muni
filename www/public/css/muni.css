@@ -701,50 +701,50 @@ a {
   background-color: #111;
 }
 .rail__icon[data-icon="rss"], .rail__section-icon[data-icon="rss"],
-.rail__icon[data-icon="311"], .rail__section-icon[data-icon="311"] { -webkit-mask-image: url('/icons/rss.svg'); mask-image: url('/icons/rss.svg'); }
-.rail__icon[data-icon="cone"], .rail__section-icon[data-icon="cone"] { -webkit-mask-image: url('/icons/cone.svg'); mask-image: url('/icons/cone.svg'); }
-.rail__icon[data-icon="caution"], .rail__section-icon[data-icon="caution"] { -webkit-mask-image: url('/icons/caution.svg'); mask-image: url('/icons/caution.svg'); }
-.rail__icon[data-icon="shield"], .rail__section-icon[data-icon="shield"] { -webkit-mask-image: url('/icons/shield.svg'); mask-image: url('/icons/shield.svg'); }
-.rail__icon[data-icon="badge"], .rail__section-icon[data-icon="badge"] { -webkit-mask-image: url('/icons/badge.svg'); mask-image: url('/icons/badge.svg'); }
-.rail__icon[data-icon="handcuffs"], .rail__section-icon[data-icon="handcuffs"] { -webkit-mask-image: url('/icons/handcuffs.svg'); mask-image: url('/icons/handcuffs.svg'); }
+.rail__icon[data-icon="311"], .rail__section-icon[data-icon="311"] { -webkit-mask-image: url('/icons/rss.svg?v=a1973ca60c03'); mask-image: url('/icons/rss.svg?v=a1973ca60c03'); }
+.rail__icon[data-icon="cone"], .rail__section-icon[data-icon="cone"] { -webkit-mask-image: url('/icons/cone.svg?v=d6ab112c53f3'); mask-image: url('/icons/cone.svg?v=d6ab112c53f3'); }
+.rail__icon[data-icon="caution"], .rail__section-icon[data-icon="caution"] { -webkit-mask-image: url('/icons/caution.svg?v=0454d49ce7bb'); mask-image: url('/icons/caution.svg?v=0454d49ce7bb'); }
+.rail__icon[data-icon="shield"], .rail__section-icon[data-icon="shield"] { -webkit-mask-image: url('/icons/shield.svg?v=4f375430ba0a'); mask-image: url('/icons/shield.svg?v=4f375430ba0a'); }
+.rail__icon[data-icon="badge"], .rail__section-icon[data-icon="badge"] { -webkit-mask-image: url('/icons/badge.svg?v=5969b7bf2e6f'); mask-image: url('/icons/badge.svg?v=5969b7bf2e6f'); }
+.rail__icon[data-icon="handcuffs"], .rail__section-icon[data-icon="handcuffs"] { -webkit-mask-image: url('/icons/handcuffs.svg?v=a787670d5fa2'); mask-image: url('/icons/handcuffs.svg?v=a787670d5fa2'); }
 .rail__icon[data-icon="handcuffs"] { -webkit-mask-size: 20px 16px; mask-size: 20px 16px; }
 .rail__sub-btn .rail__icon[data-icon="handcuffs"] { -webkit-mask-size: 21px 17px; mask-size: 21px 17px; }
-.rail__icon[data-icon="fingerprint"], .rail__section-icon[data-icon="fingerprint"] { -webkit-mask-image: url('/icons/fingerprint.svg'); mask-image: url('/icons/fingerprint.svg'); }
-.rail__icon[data-icon="radio"], .rail__section-icon[data-icon="radio"] { -webkit-mask-image: url('/icons/radio.svg'); mask-image: url('/icons/radio.svg'); }
-.rail__icon[data-icon="car-burst"], .rail__section-icon[data-icon="car-burst"] { -webkit-mask-image: url('/icons/car-burst.svg'); mask-image: url('/icons/car-burst.svg'); }
+.rail__icon[data-icon="fingerprint"], .rail__section-icon[data-icon="fingerprint"] { -webkit-mask-image: url('/icons/fingerprint.svg?v=241b26ad321d'); mask-image: url('/icons/fingerprint.svg?v=241b26ad321d'); }
+.rail__icon[data-icon="radio"], .rail__section-icon[data-icon="radio"] { -webkit-mask-image: url('/icons/radio.svg?v=5675bbb97d37'); mask-image: url('/icons/radio.svg?v=5675bbb97d37'); }
+.rail__icon[data-icon="car-burst"], .rail__section-icon[data-icon="car-burst"] { -webkit-mask-image: url('/icons/car-burst.svg?v=505e8f311893'); mask-image: url('/icons/car-burst.svg?v=505e8f311893'); }
 .rail__icon[data-icon="car-burst"] { -webkit-mask-size: 20px 16px; mask-size: 20px 16px; }
 .rail__sub-btn .rail__icon[data-icon="car-burst"] { -webkit-mask-size: 21px 17px; mask-size: 21px 17px; }
-.rail__icon[data-icon="crash"], .rail__section-icon[data-icon="crash"] { -webkit-mask-image: url('/icons/crash.svg'); mask-image: url('/icons/crash.svg'); }
-.rail__icon[data-icon="crash-history"], .rail__section-icon[data-icon="crash-history"] { -webkit-mask-image: url('/icons/crash-history.svg'); mask-image: url('/icons/crash-history.svg'); }
-.rail__icon[data-icon="paper"], .rail__section-icon[data-icon="paper"] { -webkit-mask-image: url('/icons/paper.svg'); mask-image: url('/icons/paper.svg'); }
-.rail__icon[data-icon="buildings"], .rail__section-icon[data-icon="buildings"] { -webkit-mask-image: url('/icons/buildings.svg'); mask-image: url('/icons/buildings.svg'); }
-.rail__icon[data-icon="crane"], .rail__section-icon[data-icon="crane"] { -webkit-mask-image: url('/icons/crane.svg'); mask-image: url('/icons/crane.svg'); }
-.rail__icon[data-icon="construction"], .rail__section-icon[data-icon="construction"] { -webkit-mask-image: url('/icons/construction.svg'); mask-image: url('/icons/construction.svg'); }
-.rail__icon[data-icon="hammer"], .rail__section-icon[data-icon="hammer"] { -webkit-mask-image: url('/icons/hammer.svg'); mask-image: url('/icons/hammer.svg'); }
+.rail__icon[data-icon="crash"], .rail__section-icon[data-icon="crash"] { -webkit-mask-image: url('/icons/crash.svg?v=333bcdbe399c'); mask-image: url('/icons/crash.svg?v=333bcdbe399c'); }
+.rail__icon[data-icon="crash-history"], .rail__section-icon[data-icon="crash-history"] { -webkit-mask-image: url('/icons/crash-history.svg?v=e0bcce24a8e0'); mask-image: url('/icons/crash-history.svg?v=e0bcce24a8e0'); }
+.rail__icon[data-icon="paper"], .rail__section-icon[data-icon="paper"] { -webkit-mask-image: url('/icons/paper.svg?v=b0c276e45656'); mask-image: url('/icons/paper.svg?v=b0c276e45656'); }
+.rail__icon[data-icon="buildings"], .rail__section-icon[data-icon="buildings"] { -webkit-mask-image: url('/icons/buildings.svg?v=edf3f51cbe8a'); mask-image: url('/icons/buildings.svg?v=edf3f51cbe8a'); }
+.rail__icon[data-icon="crane"], .rail__section-icon[data-icon="crane"] { -webkit-mask-image: url('/icons/crane.svg?v=4f69f57d430c'); mask-image: url('/icons/crane.svg?v=4f69f57d430c'); }
+.rail__icon[data-icon="construction"], .rail__section-icon[data-icon="construction"] { -webkit-mask-image: url('/icons/construction.svg?v=564288efe9f5'); mask-image: url('/icons/construction.svg?v=564288efe9f5'); }
+.rail__icon[data-icon="hammer"], .rail__section-icon[data-icon="hammer"] { -webkit-mask-image: url('/icons/hammer.svg?v=19b271d7376b'); mask-image: url('/icons/hammer.svg?v=19b271d7376b'); }
 .rail__icon[data-icon="tools"], .rail__section-icon[data-icon="tools"],
-.rail__icon[data-icon="hammer-wrench"], .rail__section-icon[data-icon="hammer-wrench"] { -webkit-mask-image: url('/icons/tools.svg'); mask-image: url('/icons/tools.svg'); }
-.rail__icon[data-icon="house"], .rail__section-icon[data-icon="house"] { -webkit-mask-image: url('/icons/house.svg'); mask-image: url('/icons/house.svg'); }
-.rail__icon[data-icon="route"], .rail__section-icon[data-icon="route"] { -webkit-mask-image: url('/icons/route.svg'); mask-image: url('/icons/route.svg'); }
-.rail__icon[data-icon="train"], .rail__section-icon[data-icon="train"] { -webkit-mask-image: url('/icons/train.svg'); mask-image: url('/icons/train.svg'); }
+.rail__icon[data-icon="hammer-wrench"], .rail__section-icon[data-icon="hammer-wrench"] { -webkit-mask-image: url('/icons/tools.svg?v=8a83782a3569'); mask-image: url('/icons/tools.svg?v=8a83782a3569'); }
+.rail__icon[data-icon="house"], .rail__section-icon[data-icon="house"] { -webkit-mask-image: url('/icons/house.svg?v=12ffc479bb9f'); mask-image: url('/icons/house.svg?v=12ffc479bb9f'); }
+.rail__icon[data-icon="route"], .rail__section-icon[data-icon="route"] { -webkit-mask-image: url('/icons/route.svg?v=bcea9ab7cedf'); mask-image: url('/icons/route.svg?v=bcea9ab7cedf'); }
+.rail__icon[data-icon="train"], .rail__section-icon[data-icon="train"] { -webkit-mask-image: url('/icons/train.svg?v=f2256b959053'); mask-image: url('/icons/train.svg?v=f2256b959053'); }
 .rail__icon[data-icon="train"] { -webkit-mask-size: auto 22px; mask-size: auto 22px; }
 .rail__section-icon[data-icon="train"] { -webkit-mask-size: auto 18px; mask-size: auto 18px; }
-.rail__icon[data-icon="parking"], .rail__section-icon[data-icon="parking"] { -webkit-mask-image: url('/icons/parking.svg'); mask-image: url('/icons/parking.svg'); }
-.rail__icon[data-icon="bike"], .rail__section-icon[data-icon="bike"] { -webkit-mask-image: url('/icons/bike.svg'); mask-image: url('/icons/bike.svg'); }
-.rail__icon[data-icon="walk"], .rail__section-icon[data-icon="walk"] { -webkit-mask-image: url('/icons/walk.svg'); mask-image: url('/icons/walk.svg'); }
-.rail__icon[data-icon="leaf"], .rail__section-icon[data-icon="leaf"] { -webkit-mask-image: url('/icons/leaf.svg'); mask-image: url('/icons/leaf.svg'); }
-.rail__icon[data-icon="tree"], .rail__section-icon[data-icon="tree"] { -webkit-mask-image: url('/icons/tree.svg'); mask-image: url('/icons/tree.svg'); }
-.rail__icon[data-icon="tree-pine"], .rail__section-icon[data-icon="tree-pine"] { -webkit-mask-image: url('/icons/tree-pine.svg'); mask-image: url('/icons/tree-pine.svg'); }
-.rail__icon[data-icon="map"], .rail__section-icon[data-icon="map"] { -webkit-mask-image: url('/icons/map.svg'); mask-image: url('/icons/map.svg'); }
-.rail__icon[data-icon="waves"], .rail__section-icon[data-icon="waves"] { -webkit-mask-image: url('/icons/waves.svg'); mask-image: url('/icons/waves.svg'); }
-.rail__icon[data-icon="table"], .rail__section-icon[data-icon="table"] { -webkit-mask-image: url('/icons/table.svg'); mask-image: url('/icons/table.svg'); }
-.rail__icon[data-icon="database"], .rail__section-icon[data-icon="database"] { -webkit-mask-image: url('/icons/database.svg'); mask-image: url('/icons/database.svg'); }
-.rail__icon[data-icon="alert"], .rail__section-icon[data-icon="alert"] { -webkit-mask-image: url('/icons/alert.svg'); mask-image: url('/icons/alert.svg'); }
-.rail__icon[data-icon="truck"], .rail__section-icon[data-icon="truck"] { -webkit-mask-image: url('/icons/truck.svg'); mask-image: url('/icons/truck.svg'); }
-.rail__icon[data-icon="calendar"], .rail__section-icon[data-icon="calendar"] { -webkit-mask-image: url('/icons/calendar.svg'); mask-image: url('/icons/calendar.svg'); }
-.rail__icon[data-icon="flame"], .rail__section-icon[data-icon="flame"] { -webkit-mask-image: url('/icons/flame.svg'); mask-image: url('/icons/flame.svg'); }
-.rail__icon[data-icon="landmark"], .rail__section-icon[data-icon="landmark"] { -webkit-mask-image: url('/icons/landmark.svg'); mask-image: url('/icons/landmark.svg'); }
-.rail__icon[data-icon="dashboard"], .rail__section-icon[data-icon="dashboard"] { -webkit-mask-image: url('/icons/dashboard.svg'); mask-image: url('/icons/dashboard.svg'); }
-.rail__icon[data-icon="newspaper"], .rail__section-icon[data-icon="newspaper"] { -webkit-mask-image: url('/icons/newspaper.svg'); mask-image: url('/icons/newspaper.svg'); }
+.rail__icon[data-icon="parking"], .rail__section-icon[data-icon="parking"] { -webkit-mask-image: url('/icons/parking.svg?v=7f7e781fbca6'); mask-image: url('/icons/parking.svg?v=7f7e781fbca6'); }
+.rail__icon[data-icon="bike"], .rail__section-icon[data-icon="bike"] { -webkit-mask-image: url('/icons/bike.svg?v=e8d08e7034b7'); mask-image: url('/icons/bike.svg?v=e8d08e7034b7'); }
+.rail__icon[data-icon="walk"], .rail__section-icon[data-icon="walk"] { -webkit-mask-image: url('/icons/walk.svg?v=669cb8fd9b52'); mask-image: url('/icons/walk.svg?v=669cb8fd9b52'); }
+.rail__icon[data-icon="leaf"], .rail__section-icon[data-icon="leaf"] { -webkit-mask-image: url('/icons/leaf.svg?v=d63187c39f7b'); mask-image: url('/icons/leaf.svg?v=d63187c39f7b'); }
+.rail__icon[data-icon="tree"], .rail__section-icon[data-icon="tree"] { -webkit-mask-image: url('/icons/tree.svg?v=ac031ef59a58'); mask-image: url('/icons/tree.svg?v=ac031ef59a58'); }
+.rail__icon[data-icon="tree-pine"], .rail__section-icon[data-icon="tree-pine"] { -webkit-mask-image: url('/icons/tree-pine.svg?v=6a2c8ba2c4bd'); mask-image: url('/icons/tree-pine.svg?v=6a2c8ba2c4bd'); }
+.rail__icon[data-icon="map"], .rail__section-icon[data-icon="map"] { -webkit-mask-image: url('/icons/map.svg?v=b6d7960b1062'); mask-image: url('/icons/map.svg?v=b6d7960b1062'); }
+.rail__icon[data-icon="waves"], .rail__section-icon[data-icon="waves"] { -webkit-mask-image: url('/icons/waves.svg?v=134c6f3cbda1'); mask-image: url('/icons/waves.svg?v=134c6f3cbda1'); }
+.rail__icon[data-icon="table"], .rail__section-icon[data-icon="table"] { -webkit-mask-image: url('/icons/table.svg?v=cf0bcd5cb590'); mask-image: url('/icons/table.svg?v=cf0bcd5cb590'); }
+.rail__icon[data-icon="database"], .rail__section-icon[data-icon="database"] { -webkit-mask-image: url('/icons/database.svg?v=9f4f1fb2d0fc'); mask-image: url('/icons/database.svg?v=9f4f1fb2d0fc'); }
+.rail__icon[data-icon="alert"], .rail__section-icon[data-icon="alert"] { -webkit-mask-image: url('/icons/alert.svg?v=89d58f4628af'); mask-image: url('/icons/alert.svg?v=89d58f4628af'); }
+.rail__icon[data-icon="truck"], .rail__section-icon[data-icon="truck"] { -webkit-mask-image: url('/icons/truck.svg?v=ff0485c9d731'); mask-image: url('/icons/truck.svg?v=ff0485c9d731'); }
+.rail__icon[data-icon="calendar"], .rail__section-icon[data-icon="calendar"] { -webkit-mask-image: url('/icons/calendar.svg?v=d92746f52d4b'); mask-image: url('/icons/calendar.svg?v=d92746f52d4b'); }
+.rail__icon[data-icon="flame"], .rail__section-icon[data-icon="flame"] { -webkit-mask-image: url('/icons/flame.svg?v=ca165f12b38b'); mask-image: url('/icons/flame.svg?v=ca165f12b38b'); }
+.rail__icon[data-icon="landmark"], .rail__section-icon[data-icon="landmark"] { -webkit-mask-image: url('/icons/landmark.svg?v=b192f69683ed'); mask-image: url('/icons/landmark.svg?v=b192f69683ed'); }
+.rail__icon[data-icon="dashboard"], .rail__section-icon[data-icon="dashboard"] { -webkit-mask-image: url('/icons/dashboard.svg?v=a26ed511b9b0'); mask-image: url('/icons/dashboard.svg?v=a26ed511b9b0'); }
+.rail__icon[data-icon="newspaper"], .rail__section-icon[data-icon="newspaper"] { -webkit-mask-image: url('/icons/newspaper.svg?v=850a50c27b0c'); mask-image: url('/icons/newspaper.svg?v=850a50c27b0c'); }
 .rail__label { display: none; }
 .row__dot.cat { background: var(--accent); }
 
