@@ -60,7 +60,7 @@
       <header class="list-pane__head">
         <h2 x-text="categoryTitle"></h2>
         <div class="list-pane__tools ui-toolbar">
-          <span class="muted" x-text="rowsLoading ? 'Loading…' : category === 'service_requests' && listScope === 'map' ? `${rows.length} shown of ${(geoFeatureCount || 0).toLocaleString()} in view` : category === 'service_requests' ? `${rows.length} recent items` : `${rows.length} items`"></span>
+          <span class="muted" x-text="rowsLoading ? 'Loading…' : category === 'service_requests' && listScope === 'map' ? `${rows.length} shown of ${(geoFeatureCount || 0).toLocaleString()} in view` : category === 'service_requests' ? `${rows.length} requests shown` : `${rows.length} items`"></span>
           <button
             type="button"
             class="filter-toggle open-now-toggle ui-button ui-button--toolbar"
@@ -88,13 +88,17 @@
           </button>
         </div>
       </header>
-      <div class="list-pane__311-scope" x-show="category === 'service_requests'" x-cloak role="group" aria-label="311 request list">
+      <div class="list-pane__scope" role="group" aria-label="311 request list" x-show="category === 'service_requests'" x-cloak>
         <button type="button" :aria-pressed="listScope === 'map'" :class="{ 'is-active': listScope === 'map' }" @click="set311ListScope('map')">In map view</button>
-        <button type="button" :aria-pressed="listScope === 'history'" :class="{ 'is-active': listScope === 'history' }" @click="set311ListScope('history')">Requests &amp; history</button>
+        <button type="button" :aria-pressed="listScope === 'history'" :class="{ 'is-active': listScope === 'history' }" @click="set311ListScope('history')">All requests &amp; history</button>
       </div>
-      <p class="list-pane__311-context muted" x-show="category === 'service_requests'" x-cloak role="status"
-         x-text="listScope === 'map' ? `${(geoFeatureCount || 0).toLocaleString()} open or active requests in view, reported in the last 30 days` : 'Citywide requests, including older and closed reports'"></p>
-      <ul class="list-pane__rows" x-ref="listRows">
+      <div class="list-pane__context" x-show="category === 'service_requests'" x-cloak>
+        <span class="muted" role="status" x-show="listScope === 'map'" x-text="mapError ? 'Map requests unavailable' : geoFeatureCount === null ? 'Loading map requests…' : `${geoFeatureCount.toLocaleString()} open or active requests in view · reported in the last 30 days`"></span>
+        <span class="muted" x-show="listScope === 'history'">Citywide requests, including older and closed reports</span>
+      </div>
+      <p role="alert" x-show="listError" x-text="listError"></p>
+      <p role="alert" x-show="detailError" x-text="detailError"></p>
+      <ul class="list-pane__rows" x-ref="listRows" tabindex="0" aria-label="Requests and records" @scroll.passive="maybeLoadMore($event)">
         <template x-if="rowsLoading">
           <template x-for="i in 6" :key="'skel-' + i">
             <li class="row row--skeleton ui-list-row" aria-hidden="true">
@@ -108,7 +112,7 @@
           </template>
         </template>
         <template x-if="!rowsLoading && !eventCategory()">
-          <template x-for="row in rows" :key="row.external_id">
+          <template x-for="row in rows" :key="`${row.hall || hall}:${row.external_id}`">
             <li class="row ui-list-row"
                 :class="{ 'is-active': selected?.external_id === row.external_id, 'is-hovered': rowIsHovered(row) }"
                 role="button" tabindex="0" :aria-label="`${rowTitle(row)}. ${rowSubtitle(row)}`"
@@ -153,7 +157,7 @@
                 <em x-text="group.countLabel"></em>
               </button>
               <ul class="event-day-group__rows">
-                <template x-for="row in group.rows" :key="row.external_id">
+                <template x-for="row in group.rows" :key="`${row.hall || hall}:${row.external_id}`">
                   <li class="row ui-list-row"
                       :class="{ 'is-active': selected?.external_id === row.external_id, 'is-hovered': rowIsHovered(row), 'is-event-today': eventTiming(row) === 'today', 'is-event-upcoming': eventTiming(row) === 'upcoming' }"
                       @click="select(row)"
@@ -181,14 +185,18 @@
             </li>
           </template>
         </template>
-        <template x-if="!rowsLoading">
-          <li class="row row--empty ui-list-row" x-show="rows.length === 0">
+        <template x-if="!rowsLoading && rows.length === 0">
+          <li class="row row--empty ui-list-row">
             <span x-text="emptyMessage"></span>
           </li>
         </template>
+        <li class="list-pane__load-status" x-show="category === 'service_requests' && !rowsLoading && (nextCursor || rowsAppending)" x-cloak>
+          <span x-show="!loadMoreError" x-text="rowsAppending ? 'Loading more requests…' : 'Scroll for more requests'"></span>
+          <button type="button" x-show="loadMoreError" @click="loadMoreRows()">Could not load more. Retry</button>
+        </li>
       </ul>
-      <button type="button" class="list-pane__load-more" x-show="category === 'service_requests' && listScope === 'history' && historyHasMore" x-cloak
-              :disabled="historyLoadingMore" @click="loadMoreHistory()" x-text="historyLoadingMore ? 'Loading…' : 'Load older requests'"></button>
+      <button type="button" class="list-pane__load-more" x-show="category === 'service_requests' && listScope === 'history' && nextCursor" x-cloak
+              :disabled="rowsAppending" @click="loadMoreRows()" x-text="rowsAppending ? 'Loading…' : 'Load older requests'"></button>
     </section>
 
     <div
@@ -231,22 +239,21 @@
 
     <section class="body-pane native-map" :class="{ 'body-pane--events': eventCategory() }">
       <div id="map" class="body-pane__map" :class="{ 'map--light': !window.MUNI_MAPTILER_KEY }" x-show="defaultWidget === 'map' && !eventCategory()"></div>
-      <div class="map-311-guide" x-show="category === 'service_requests'" x-cloak>
+      <div class="map-311-guide" x-show="category === 'service_requests' && defaultWidget === 'map'" x-cloak>
         <strong>Open or active requests</strong>
         <span>Reported in the last 30 days · one dot per request</span>
         <div class="map-311-guide__legend" aria-label="Map dot colors">
-          <span><i class="map-311-dot map-311-dot--green" aria-hidden="true"></i> Acknowledged or in progress</span>
-          <span><i class="map-311-dot map-311-dot--yellow" aria-hidden="true"></i> Open, awaiting action</span>
-          <span><i class="map-311-dot map-311-dot--red" aria-hidden="true"></i> No reported update in 14 days</span>
-          <span><i class="map-311-dot map-311-dot--grey" aria-hidden="true"></i> Other active status</span>
+          <span><i class="map-311-dot map-311-dot--green" aria-hidden="true"></i>Acknowledged or in progress</span>
+          <span><i class="map-311-dot map-311-dot--yellow" aria-hidden="true"></i>Open, awaiting action</span>
+          <span><i class="map-311-dot map-311-dot--red" aria-hidden="true"></i>No reported update in 14 days</span>
+          <span><i class="map-311-dot map-311-dot--grey" aria-hidden="true"></i>Other active status</span>
         </div>
       </div>
       <div class="map-nearby" role="dialog" aria-label="Requests at this location" x-show="nearbyRequests.length > 1" x-cloak @keydown.escape.stop="nearbyRequests = []">
-        <strong x-text="`${nearbyRequests.length} requests here`"></strong>
-        <button type="button" aria-label="Close nearby requests" @click="nearbyRequests = []">×</button>
+        <div class="map-nearby__head"><strong x-text="`${nearbyRequests.length} requests here`"></strong><button type="button" aria-label="Close nearby requests" @click="nearbyRequests = []">×</button></div>
         <ul>
-          <template x-for="feature in nearbyRequests" :key="`${feature.properties.hall}:${feature.properties.external_id}`">
-            <li><button type="button" @click="selectNearbyRequest(feature)" x-text="`${feature.properties.case_type || '311 request'} · ${feature.properties.address || feature.properties.external_id}`"></button></li>
+          <template x-for="request in nearbyRequests" :key="`${request.hall}:${request.external_id}`">
+            <li><button type="button" @click="selectNearbyRequest(request)"><span x-text="request.case_type || '311 request'"></span><small x-text="request.address || `Request ${request.external_id}`"></small></button></li>
           </template>
         </ul>
       </div>
@@ -255,7 +262,7 @@
       </div>
       <div class="map-error" x-show="mapError && defaultWidget === 'map'" x-cloak>
         <div class="map-error__panel">
-          <strong>Basemap unavailable</strong>
+          <strong>Map unavailable</strong>
           <p class="muted" x-text="mapError"></p>
           <button type="button" class="ui-button ui-button--toolbar" @click="retryMap()">Retry</button>
         </div>
@@ -264,7 +271,7 @@
         <span x-text="mobileListOpen ? 'Hide list' : 'Show list'"></span>
       </button>
       <div class="body-pane__list" x-show="defaultWidget === 'list' && !eventCategory()">
-        <template x-for="row in rows.slice(0,20)" :key="row.external_id">
+        <template x-for="row in rows.slice(0,20)" :key="`${row.hall || hall}:${row.external_id}`">
           <article class="card card--list ui-panel">
             <header x-text="rowTitle(row)"></header>
             <p x-text="rowSubtitle(row) || row.description || ''"></p>
