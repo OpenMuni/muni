@@ -19,7 +19,7 @@ RSpec.describe 'Charles River region and Water Quality API' do
       )
       follow_redirect!
       expect(last_response.status).to eq(200)
-      expect(last_response.body).to include('<title>Muni · Charles River</title>', '>Records</h1>')
+      expect(last_response.body).to include('<title>OpenMuni · Charles River</title>', '>Records</h1>')
     end
   end
 

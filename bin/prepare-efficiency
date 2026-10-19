@@ -1,0 +1,29 @@
+#!/usr/bin/env ruby
+require 'json'
+require 'muni'
+Muni.boot!
+Muni::Hall.load_all!
+Muni::Store.ensure_tables!
+Muni::EfficiencyIndexes.prepare!
+if ARGV.include?('--rebuild')
+  Muni::Store.with_writer do
+    Muni::Store.db.transaction do
+      Muni::Hall.all.select(&:public?).each do |hall|
+        Muni::Store.db[:meta].where(key: "efficiency:map:#{hall.slug}").delete
+      end
+    end
+  end
+end
+Muni::ServiceRequestMap.rebuild! do |progress|
+  puts JSON.generate(progress)
+  $stdout.flush
+end
+Muni::Store.with_writer do
+  db = Muni::Store.db
+  index = Muni::EfficiencyIndexes.matching_index(db, :service_request_map_points, Muni::EfficiencyIndexes::POINT_COLUMNS)
+  db.run("ANALYZE #{db.literal(Sequel.identifier(index))}") if index
+end
+abort 'map projection incomplete' unless Muni::ServiceRequestMap.ready?
+puts JSON.generate(ready:           true,
+                   removed_indexes: Muni::Store.db[:efficiency_index_changes].select(:name,
+                                                                                     :table_name, :recreate_sql).all)

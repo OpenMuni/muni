@@ -1,0 +1,20 @@
+#!/usr/bin/env ruby
+require 'bundler/setup'
+require 'muni'
+require 'json'
+Muni.boot!
+Muni::Hall.load_all!
+Muni::Store.ensure_tables!
+Muni::Store.with_writer do
+  db = Muni::Store.db
+  db.transaction do
+    columns = Muni::EfficiencyIndexes::MAP_COLUMNS
+    unless Muni::EfficiencyIndexes.matching_index(db, :service_requests, columns)
+      db.run("CREATE INDEX service_requests_lifecycle_map_filters ON service_requests (#{columns.join(', ')})")
+    end
+    index = Muni::EfficiencyIndexes.matching_index(db, :service_requests, columns)
+    db.run("ANALYZE #{db.literal(Sequel.identifier(index))}")
+  end
+end
+abort 'Existing map projection is incomplete; prepare it before release' unless Muni::ServiceRequestMap.ready?
+puts JSON.generate(ready: true, policy: 'open-reported-30d-v1')

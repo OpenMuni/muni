@@ -4,7 +4,10 @@
   regional = water_region || subway_region
 %>
 <div class="brand">
-  <a class="brand__word brand__home" href="<%= regional ? '/' : "/?hall=#{@hall.slug}" %>" aria-label="Muni home">Muni</a>
+  <a class="brand__home" href="<%= regional ? '/' : "/?hall=#{@hall.slug}" %>" aria-label="OpenMuni home">
+    <img class="brand__logo" src="/icons/openmuni-logo.png" alt="" width="23" height="28">
+    <span class="brand__word">OpenMuni</span>
+  </a>
   <form class="municipality-selector" method="get" action="/"
         data-selected="<%= water_region ? 'Charles River' : (subway_region ? 'MBTA Subway' : Rack::Utils.escape_html(@hall.name)) %>">
     <select name="hall" aria-label="<%= regional ? 'Region' : 'Municipality' %>"

@@ -1,6 +1,7 @@
 require 'date'
 require 'time'
 require 'muni/data/meetings'
+require 'muni/service_request_query'
 
 module Muni
   module Data
@@ -284,6 +285,11 @@ module Muni
 
       def category_records(slug, limit: nil)
         cat = Muni::View.find(slug) or raise NotFound, 'unknown category'
+        if cat.slug.to_s == 'service_requests'
+          return service_request_query.page(limit: limit, compact: false,
+                                            maximum: 500)[:items]
+        end
+
         lim = query_limit(limit || params['limit'])
         scoped = service_request_scoped_records(cat, lim)
         return scoped if scoped
@@ -331,6 +337,11 @@ module Muni
       def source_records(source_slug, limit: nil)
         source = source!(source_slug)
         category = category_for_source(source_slug)
+        if source.emits == Muni::Records::ServiceRequest
+          return service_request_query(sources: [source_slug]).page(limit: limit, compact: false, metadata: false,
+                                                                    maximum: 500)[:items]
+        end
+
         lim = query_limit(limit || params['limit'])
         store_limit = source_service_requests_default?(source, category) ? nil : lim
         where = source_record_filters(source_slug, source, category&.slug)
@@ -382,6 +393,11 @@ module Muni
             values: facet_values(source_slug, source, definition, category&.slug)
           }
         end
+      end
+
+      def service_request_query(sources: nil)
+        sources ||= Muni::View.sources_for('service_requests', params['hall'])
+        Muni::ServiceRequestQuery.new(self, sources: sources)
       end
 
       private
@@ -935,7 +951,7 @@ module Muni
           return source_window_since(source_slug, source, range, time_field)
         end
 
-        Time.now.utc - Muni::View.time_range_seconds(range)
+        (@query_now || Time.now.utc) - Muni::View.time_range_seconds(range)
       end
 
       def facet_since(source, category_slug, time_field = nil, source_slug: nil)

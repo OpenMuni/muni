@@ -32,7 +32,29 @@ module Boston
     end
 
     def cursor_time(record)
-      record.updated_at || record.opened_at
+      # This collector discovers newly opened requests. Lifecycle reconciliation
+      # has an independent durable cursor and must not push discovery past rows.
+      record.opened_at
+    end
+
+    def lifecycle_lookup(stored)
+      resources = ckan.resources(PACKAGE, refresh: true)
+      records = []
+      groups = stored.group_by do |row|
+        row[:external_id].start_with?('BCS-') ? 'new' : row[:opened_at]&.year.to_s
+      end
+      groups.each do |year, rows|
+        resource = resources.find do |candidate|
+          year == 'new' ? candidate['name'].to_s.match?(/NEW SYSTEM/i) : candidate['name'].to_s.match?(/\b#{year}\b/)
+        end
+        next unless resource && !year.empty?
+
+        records.concat(lifecycle_resource_rows(resource, rows, year))
+        verify_lifecycle_snapshot!(resource)
+      end
+      raise 'duplicate Boston identities' unless records.map(&:external_id).uniq.length == records.length
+
+      records
     end
 
     def normalize_new_system(row)
@@ -44,7 +66,8 @@ module Boston
         neighborhood: clean(row['neighborhood']),
         description: clean(row['closure_comments'] || row['closure_reason'] || row['case_topic']),
         address: clean(row['full_address']), location: row_point(row),
-        opened_at: time(row['open_date']), updated_at: time(row['close_date'] || row['open_date']),
+        opened_at: Muni::ServiceRequestPolicy.reported_time(row['open_date']),
+        updated_at: time(row['close_date'] || row['open_date']),
         closed_at: time(row['close_date']), image_url: clean(row['submitted_photo']),
         source_url: dataset_url(PACKAGE)
       )
@@ -58,13 +81,53 @@ module Boston
         neighborhood: clean(row['neighborhood']),
         description: clean(row['closure_reason'] || row['case_title'] || row['subject']),
         address: clean(row['location_street_name'] || row['location']), location: row_point(row),
-        opened_at: time(row['open_dt']), updated_at: time(row['closed_dt'] || row['open_dt']),
+        opened_at: Muni::ServiceRequestPolicy.reported_time(row['open_dt']),
+        updated_at: time(row['closed_dt'] || row['open_dt']),
         closed_at: time(row['closed_dt']), image_url: clean(row['submitted_photo']),
         source_url: dataset_url(PACKAGE)
       )
     end
 
     private
+
+    def time(value)
+      # Legacy CKAN timestamps omit their offset. Preserve production's UTC
+      # convention explicitly so reconciliation does not depend on the host TZ.
+      return Muni::ServiceRequestPolicy.reported_time(value) unless /\A\d{4}-\d\d-\d\d\z/.match?(value.to_s)
+
+      date = Date.iso8601(value)
+      Time.utc(date.year, date.month, date.day)
+    rescue ArgumentError
+      nil
+    end
+
+    def verify_lifecycle_snapshot!(resource)
+      current = ckan.resources(PACKAGE, refresh: true).find { |r| r['id'] == resource['id'] }
+      return if current && ckan.resource_signature(current) == ckan.resource_signature(resource)
+
+      raise 'Boston snapshot changed during lookup; retry batch'
+    end
+
+    def lifecycle_resource_rows(resource, rows, year)
+      field = year == 'new' ? 'case_id' : 'case_enquiry_id'
+      ids = rows.map { |row| row[:external_id] }
+      raise ArgumentError, 'invalid Boston case ID' unless ids.all? { |id| /\A(?:BCS-)?\d+\z/.match?(id) }
+
+      records = []
+      where = %("#{field}" IN (#{ids.map { |id| "'#{id}'" }.join(',')}))
+      ckan.each_sql(resource: resource.fetch('id'), where: where, order: '_id ASC', limit: ids.length + 1) do |raw|
+        record = year == 'new' ? normalize_new_system(raw) : normalize_legacy(raw)
+        raise 'unexpected Boston identity' unless ids.include?(record.external_id)
+
+        record.source_revision_at = Time.iso8601("#{resource.fetch('last_modified')}Z")
+        record.collected_at = record.last_seen_at = Time.now.utc
+        record.lifecycle_evidence = { resource: resource['id'], revision: resource['last_modified'],
+                                     url: "#{SharedCkan::BASE_URL}/dataset/#{PACKAGE}/resource/#{resource['id']}",
+                                     observed_at: record.collected_at.iso8601(6), raw: raw }
+        records << record
+      end
+      records
+    end
 
     def relevant_resources(cutoff)
       years = (cutoff.year..Time.now.utc.year).to_a

@@ -1,4 +1,8 @@
 const MUNI_DOT_COLORS = {
+  map_open:     '#d29b00',
+  map_acknowledged: '#228b50',
+  map_no_recent_update: '#c7463d',
+  map_other_active: '#747d86',
   open:         '#ff7a00',
   acknowledged: '#2563eb',
   stale:        '#7c3aed',
@@ -28,7 +32,7 @@ const MUNI_QUERY_LIMIT = window.MUNI_QUERY_LIMIT || 200;
 const MUNI_DISPLAY = window.MUNI_DISPLAY || {};
 
 const MUNI_CATEGORY_MAP = {
-  service_requests: { accent: '#64748b', statusDots: true, radius: 5, cluster: false },
+  service_requests: { accent: '#228b50', statusDots: true, radius: 5, cluster: false },
   safety:          { accent: '#9b1c31', statusDots: false, incidentDots: true, radius: 5, cluster: true },
   police:           { accent: '#9b1c31', statusDots: false, radius: 5, cluster: false },
   crime_reports:    { accent: '#dc2626', statusDots: false, radius: 5, cluster: true },
@@ -67,8 +71,21 @@ window.muniShell = function ({ hall, category }) {
     hall,
     category: String(category || ''),
     _switchToken: 0,
+    _requests: {},
+    _requestSequence: 0,
+    _rowRun: 0,
+    _lastGeoKey: null,
+    nextCursor: null,
+    listScope: 'map',
+    mapBbox: null,
+    nearbyRequests: [],
+    listError: null,
+    detailError: null,
+    _mapStyleLoaded: false,
     rows: [],
     rowsLoading: false,
+    rowsAppending: false,
+    loadMoreError: null,
     halls: [],
     categories: [],
     facets: [],
@@ -77,7 +94,6 @@ window.muniShell = function ({ hall, category }) {
     selected: null,
     hoveredId: null,
     map: null,
-    _mapStyleLoaded: false,
     mapError: null,
     eventSource: null,
     categoryConfig: null,
@@ -86,6 +102,7 @@ window.muniShell = function ({ hall, category }) {
     _geoFitPending: false,
     _mapEventsBound: false,
     _boundMapLayers: new Set(),
+    _installedGeoCategory: null,
     _pmtilesReady: false,
     streamsEnabled: Boolean(window.MUNI_STREAMS_ENABLED),
     geoFeatureCount: null,
@@ -102,8 +119,7 @@ window.muniShell = function ({ hall, category }) {
     closedSubnavSection: null,
 
     async init() {
-      const r = await fetch('/api/halls'); this.halls = await r.json();
-      await this.loadCategories();
+      await Promise.all([this.loadHalls(), this.loadCategories()]);
       if (this.category === 'recent_crashes') this.category = 'crashes';
       const current = this.categories.find(c => String(c.slug) === this.category);
       const firstEnabled = this.categories.find(c => !c.disabled);
@@ -111,7 +127,7 @@ window.muniShell = function ({ hall, category }) {
         const pick = firstEnabled || this.categories[0];
         if (pick) this.category = String(pick.slug);
       }
-      setInterval(() => { this.timeTick++; }, 30000);
+      setInterval(() => { this.timeTick++; this.refresh311Lifecycle(); }, 30000);
       this.setCategory(this.category, true);
       window.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return;
@@ -130,10 +146,71 @@ window.muniShell = function ({ hall, category }) {
       window.addEventListener('orientationchange', () => this.$nextTick(() => this.resizeMap()));
     },
 
+    requestContext() {
+      return JSON.stringify([this._switchToken, this.hall, this.category, Object.entries(this.filters).sort()]);
+    },
+
+    async requestJSON(kind, url) {
+      this._requests[kind]?.controller.abort();
+      const request = { id: ++this._requestSequence, controller: new AbortController(), context: this.requestContext(), url };
+      this._requests[kind] = request;
+      const rowIdentity = () => JSON.stringify([this._rowRun, this.listScope, this.mapBbox]);
+      const row = rowIdentity();
+      const current = () => this._requests[kind]?.id === request.id && request.context === this.requestContext() &&
+        (kind !== 'geo' || url === this.geoRequestURL()) && (kind !== 'rows' || row === rowIdentity());
+      try {
+        const response = await fetch(url, { signal: request.controller.signal });
+        if (!response.ok) throw new Error(`Unable to load data (${response.status})`);
+        const data = await response.json();
+        if (!current()) throw new Error('Superseded request');
+        return data;
+      } catch (error) {
+        if (!current()) error.name = 'AbortError';
+        throw error;
+      }
+    },
+
+    cancelRequests() {
+      Object.values(this._requests).forEach(request => request.controller.abort());
+      this._requests = {};
+      this._lastGeoKey = null;
+      if (this._geoRefreshTimer) clearTimeout(this._geoRefreshTimer);
+    },
+
+    async loadHalls() { this.halls = await this.requestJSON('halls', '/api/halls'); },
+
     async loadCategories() {
-      const c = await fetch('/api/categories?hall=' + encodeURIComponent(this.hall));
-      this.categories = await c.json();
+      this.categories = await this.requestJSON('categories', '/api/categories?hall=' + encodeURIComponent(this.hall));
       this.categoryConfig = this.categories.find(x => String(x.slug) === this.category);
+    },
+
+    resetListCursor() {
+      this.nextCursor = null; this.loadMoreError = null;
+      if (this.$refs?.listRows) this.$refs.listRows.scrollTop = 0;
+    },
+
+    maybeLoadMore(event) {
+      if (this.category !== 'service_requests' || !this.nextCursor || this.rowsLoading || this.rowsAppending || this.loadMoreError) return;
+      const list = event.target;
+      if (list.scrollHeight - list.scrollTop - list.clientHeight < 480) this.loadMoreRows();
+    },
+
+    set311ListScope(scope) {
+      if (this.category !== 'service_requests' || !['map', 'history'].includes(scope) || this.listScope === scope) return;
+      this.listScope = scope;
+      this.filters.time_range = scope === 'history' ? 'all' : 'active';
+      this.nearbyRequests = [];
+      this.resetListCursor();
+      this.loadRows();
+    },
+
+    filtersChanged() {
+      this.cancelRequests(); this.resetListCursor(); this.selected = null;
+      this._geoFitPending = this.category !== 'service_requests';
+      if (this.category === 'service_requests' && this.listScope === 'map') {
+        this.mapBbox = null; this.rows = [];
+      } else this.loadRows();
+      this._lastGeoKey = null; this.refreshGeo();
     },
 
     get defaultWidget() { return this.categoryConfig?.default_widget || 'map'; },
@@ -259,7 +336,11 @@ window.muniShell = function ({ hall, category }) {
     },
     get emptyMessage() {
       if (this.rowsLoading) return '';
+      if (this.category === 'service_requests' && this.listScope === 'map' && !this.mapBbox) {
+        return this.mapError ? 'Map requests are unavailable. Try again or open history.' : 'Loading requests in this map view…';
+      }
       if (this.activeFilterCount > 0 || this.openNowActive) return 'No records match these filters.';
+      if (this.category === 'service_requests' && this.listScope === 'map') return 'No open or active requests in this area.';
       return this.categoryConfig?.empty_message || 'No data yet for this category.';
     },
     get activeFilterCount() {
@@ -274,6 +355,7 @@ window.muniShell = function ({ hall, category }) {
     get openNowActive() { return this.filters.open_now === '1'; },
     get mapEmptyMessage() {
       if (this.category === 'police') return 'No geocoded police locations for this filter.';
+      if (this.category === 'service_requests') return 'No open or active requests reported in the last 30 days in this area.';
       return 'No mappable records for this view.';
     },
 
@@ -282,25 +364,18 @@ window.muniShell = function ({ hall, category }) {
       Object.entries(this.filters).forEach(([k, v]) => { if (v) qs.set(k, v); });
       if (this.category === 'service_requests') {
         if (this.listScope === 'history') qs.set('history_view', '1');
-        else if (this.mapBbox()) {
+        else if (this.mapBbox) {
           qs.set('map_view', '1');
-          qs.set('bbox', this.mapBbox());
+          qs.set('bbox', this.mapBbox);
         }
       }
       return qs;
     },
 
-    mapBbox() {
+    viewportBbox() {
       const bounds = this.rawMap()?.getBounds?.();
       if (!bounds) return null;
       return [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()].join(',');
-    },
-
-    set311ListScope(scope) {
-      this.listScope = scope === 'history' ? 'history' : 'map';
-      this.filters.time_range = this.listScope === 'history' ? 'all' : 'active';
-      this.nearbyRequests = [];
-      this.loadRows();
     },
 
     geoQueryParams() {
@@ -310,8 +385,7 @@ window.muniShell = function ({ hall, category }) {
       if (this.category === 'service_requests') {
         qs.delete('map_view');
         qs.delete('history_view');
-        const bounds = this.mapBbox();
-        if (bounds) qs.set('bbox', bounds);
+        qs.delete('bbox');
       }
       return qs;
     },
@@ -322,7 +396,12 @@ window.muniShell = function ({ hall, category }) {
       const requestedFilters = initial ? this.urlFilters() : (requestedFiltersOverride || {});
 
       const token = ++this._switchToken;
+      this.cancelRequests();
+      this.resetListCursor();
       this.category = String(slug);
+      this.listScope = 'map';
+      this.mapBbox = null;
+      this.nearbyRequests = [];
       this.categoryConfig = next;
       this.filters = {};
       this.facets = [];
@@ -336,7 +415,7 @@ window.muniShell = function ({ hall, category }) {
       this.nearbyRequests = [];
       this.historyHasMore = false;
       this.mobileListOpen = false;
-      this._geoFitPending = true;
+      this._geoFitPending = this.category !== 'service_requests';
       if (this.category !== 'parking') this.clearParkingLocationLayer();
 
       if (this.eventSource) { this.eventSource.close(); this.eventSource = null; }
@@ -348,16 +427,11 @@ window.muniShell = function ({ hall, category }) {
         if (token !== this._switchToken) return;
         this.applyDefaultFilters();
         this.applyRequestedFilters(requestedFilters);
-        if (this.category !== 'service_requests') await this.loadRows();
+        const rows = this.category === 'service_requests' ? Promise.resolve() : this.loadRows();
+        const map = this.defaultWidget === 'map' ? this.maybeInitMap() : Promise.resolve();
+        await Promise.all([rows, map]);
         if (token !== this._switchToken) return;
-
-        if (this.defaultWidget === 'map') {
-          await this.maybeInitMap();
-          if (token !== this._switchToken) return;
-          if (this.category === 'parking') this.maybeRequestParkingLocation();
-        } else {
-          this.clearMapLayers();
-        }
+        if (this.category === 'parking') this.maybeRequestParkingLocation();
 
         if (this.streamsEnabled) this.attachStream();
       } catch (e) {
@@ -369,11 +443,12 @@ window.muniShell = function ({ hall, category }) {
     },
 
     async loadFacets() {
+      const context = this.requestContext();
       try {
-        const r = await fetch(`/api/category/${encodeURIComponent(this.category)}/facets?hall=${this.hall}`);
-        this.facets = r.ok ? (await r.json()).filter(f => f.values.length > 0) : [];
-      } catch (_) {
-        this.facets = [];
+        const facets = await this.requestJSON('facets', `/api/category/${encodeURIComponent(this.category)}/facets?hall=${encodeURIComponent(this.hall)}`);
+        this.facets = facets.filter(f => f.values.length > 0);
+      } catch (error) {
+        if (error.name !== 'AbortError' && context === this.requestContext()) this.facets = [];
       }
     },
 
@@ -415,22 +490,60 @@ window.muniShell = function ({ hall, category }) {
     },
 
     async loadRows() {
-      const token = this._switchToken;
-      const url = `/api/category/${encodeURIComponent(this.category)}/records?${this.queryParams().toString()}`;
-      this.rowsLoading = true;
+      if (this.category === 'service_requests' && this.listScope === 'map' && !this.mapBbox) {
+        this.rows = []; this.rowsLoading = false; this.nextCursor = null;
+        return;
+      }
+      const run = ++this._rowRun;
+      const context = this.requestContext();
+      this.rowsLoading = true; this.rowsAppending = false; this.listError = null; this.loadMoreError = null;
       try {
-        const r = await fetch(url);
-        if (token !== this._switchToken || url !== `/api/category/${encodeURIComponent(this.category)}/records?${this.queryParams().toString()}`) return;
-        this.rows = r.ok ? await r.json() : [];
-        if (this.category === 'service_requests' && this.listScope === 'history') {
-          this.historyHasMore = this.rows.length === MUNI_QUERY_LIMIT;
+        const qs = this.queryParams();
+        const paged = this.category === 'service_requests';
+        if (paged) {
+          qs.set('limit', '200');
+          if (this.listScope === 'map') { qs.set('bbox', this.mapBbox); qs.set('map_view', '1'); }
+          else qs.set('history_view', '1');
         }
+        const data = await this.requestJSON('rows', `/api/category/${encodeURIComponent(this.category)}/${paged ? 'page' : 'records'}?${qs}`);
+        this.rows = paged ? data.items : data;
+        this.nextCursor = paged ? data.next_cursor : null;
         this.reconcileSelectedRow();
-      } catch (_) {
-        this.rows = [];
-        this.reconcileSelectedRow();
+      } catch (error) {
+        if (error.name !== 'AbortError' && run === this._rowRun && context === this.requestContext()) {
+          this.rows = []; this.listError = error.message; this.nextCursor = null;
+        }
       } finally {
-        this.rowsLoading = false;
+        if (run === this._rowRun && context === this.requestContext()) this.rowsLoading = false;
+      }
+    },
+
+    async loadMoreRows() {
+      if (this.category !== 'service_requests' || !this.nextCursor || this.rowsLoading || this.rowsAppending) return;
+      const run = ++this._rowRun;
+      const context = this.requestContext();
+      const cursor = this.nextCursor;
+      this.rowsAppending = true; this.loadMoreError = null;
+      try {
+        const qs = this.queryParams();
+        qs.set('limit', '200'); qs.set('cursor', cursor);
+        if (this.listScope === 'map') { qs.set('bbox', this.mapBbox); qs.set('map_view', '1'); }
+        else qs.set('history_view', '1');
+        const data = await this.requestJSON('rows', `/api/category/${encodeURIComponent(this.category)}/page?${qs}`);
+        if (data.next_cursor === cursor) throw new Error('The next page did not advance. Please retry.');
+        const seen = new Set(this.rows.map(row => `${row.hall || this.hall}:${row.external_id}`));
+        this.rows = this.rows.concat(data.items.filter(row => {
+          const key = `${row.hall || this.hall}:${row.external_id}`;
+          if (seen.has(key)) return false;
+          seen.add(key); return true;
+        }));
+        this.nextCursor = data.next_cursor;
+      } catch (error) {
+        if (error.name !== 'AbortError' && run === this._rowRun && context === this.requestContext()) {
+          this.loadMoreError = error.message;
+        }
+      } finally {
+        if (run === this._rowRun && context === this.requestContext()) this.rowsAppending = false;
       }
     },
 
@@ -524,9 +637,7 @@ window.muniShell = function ({ hall, category }) {
       } else {
         this.filters[name] = this.filters[name] === value ? null : value;
       }
-      this._geoFitPending = true;
-      this.loadRows().catch(() => { this.rows = []; });
-      this.refreshGeo().catch(() => {});
+      this.filtersChanged();
     },
 
     toggleOpenNow() {
@@ -536,17 +647,13 @@ window.muniShell = function ({ hall, category }) {
       } else {
         this.filters.open_now = '1';
       }
-      this._geoFitPending = true;
-      this.loadRows().catch(() => { this.rows = []; });
-      this.refreshGeo().catch(() => {});
+      this.filtersChanged();
     },
 
     clearFilters() {
       this.filters = {};
       this.applyDefaultFilters();
-      this._geoFitPending = true;
-      this.loadRows().catch(() => { this.rows = []; });
-      this.refreshGeo().catch(() => {});
+      this.filtersChanged();
     },
 
     facetLabel(facet) {
@@ -666,6 +773,10 @@ window.muniShell = function ({ hall, category }) {
 
     dotClassFromRow(row) {
       if (!row) return '';
+      if (this.category === 'service_requests') {
+        const signal = `map_${row.map_signal || ''}`;
+        return MUNI_DOT_COLORS[signal] ? signal : 'history';
+      }
       const lifecycle = (row.lifecycle_status || '').toString().toLowerCase();
       if (MUNI_DOT_COLORS[lifecycle]) return lifecycle;
       if (this.typeHint(row) === 'Crash' || 'fatal' in row || 'injury' in row) {
@@ -721,10 +832,11 @@ window.muniShell = function ({ hall, category }) {
       const theme = this.mapTheme();
       if (this.category === 'service_requests') {
         return ['match', ['get', 'map_signal'],
-          'acknowledged', '#15803d',
-          'open', '#d4a500',
-          'no_recent_update', '#c2413b',
-          'other_active', '#64748b', '#64748b'];
+          'open', MUNI_DOT_COLORS.map_open,
+          'acknowledged', MUNI_DOT_COLORS.map_acknowledged,
+          'no_recent_update', MUNI_DOT_COLORS.map_no_recent_update,
+          'other_active', MUNI_DOT_COLORS.map_other_active,
+          MUNI_DOT_COLORS.map_other_active];
       }
       if (theme.incidentDots) {
         return ['match', ['get', '_incident_kind'],
@@ -762,6 +874,9 @@ window.muniShell = function ({ hall, category }) {
     select(row, options = {}) {
       const previousId = this.selected?.external_id;
       this.selected = row;
+      this.detailError = null;
+      this._requests.detail?.controller.abort();
+      if (row?._compact) this.loadSelectedDetail(row);
       if (this.isParkingRecord(row) && previousId !== row.external_id) {
         this.parkingDurationMinutes = this.parkingInitialDuration(row);
       }
@@ -779,6 +894,21 @@ window.muniShell = function ({ hall, category }) {
         const el = document.querySelector('.row.is-active');
         el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       });
+    },
+
+    async loadSelectedDetail(row) {
+      const scope = row._source_scope || row._source_slug?.split('/')[0] || this.hall;
+      const name = row._source_name || row._source_slug?.split('/')[1] || this.category;
+      const selected = row;
+      const context = this.requestContext();
+      try {
+        const data = await this.requestJSON('detail', `/api/records/${encodeURIComponent(scope)}/${encodeURIComponent(name)}/${encodeURIComponent(row.external_id)}?hall=${encodeURIComponent(this.hall)}`);
+        if (this.selected?.external_id === selected.external_id && this.selected?.hall === selected.hall) {
+          this.selected = { ...row, ...data, _compact: false };
+        }
+      } catch (error) {
+        if (error.name !== 'AbortError' && context === this.requestContext() && this.selected?.hall === selected.hall && this.selected?.external_id === selected.external_id) this.detailError = error.message;
+      }
     },
 
     isParkingRecord(row) {
@@ -965,7 +1095,7 @@ window.muniShell = function ({ hall, category }) {
         'fcode', 'oscode', 'rcode',
         'pedestrian', 'motorists', 'cyclists', 'pedestrians', 'injuries', 'hospitalizations',
         'manner', 'first_harmful_event', 'opened_at', 'acknowledged_at',
-        'closed_at', 'updated_at', 'occurred_at', 'reported_at', 'display_status', 'lifecycle_status', 'last_touched_at', 'applied_at',
+        'closed_at', 'updated_at', 'occurred_at', 'reported_at', 'display_status', 'lifecycle_status', 'map_signal', 'last_touched_at', 'applied_at',
         'issued_at', 'received_at', 'observed_at', 'applicant_submit_date', 'food_protection_certification_expires_at',
         'allergen_awareness_certification_expires_at', 'attested_at', 'plant_date',
         'removal_date', 'edited_at', 'order_number', 'food_handler_count', 'equipment',
@@ -1095,16 +1225,15 @@ window.muniShell = function ({ hall, category }) {
         'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf';
     },
 
-    // Keep MapLibre's mutable internals outside Alpine's reactive proxy.
+    // MapLibre owns mutable objects that must not be wrapped by Alpine's proxy.
     rawMap() { return window.Alpine?.raw ? window.Alpine.raw(this.map) : this.map; },
 
-    // Styles can accept data layers while base-map tiles are still loading.
+    // A loaded style can accept layers while its tile sources are still loading.
     mapStyleReady() { return this._mapStyleLoaded || this.rawMap()?.isStyleLoaded(); },
 
     async maybeInitMap() {
       if (this.defaultWidget !== 'map') return;
-      try { await window.MUNI_MAP_READY; }
-      catch (_) { this.mapError = 'Map unavailable.'; return; }
+      const initialMap = !this.rawMap();
       if (!this.rawMap()) {
         const center = JSON.parse(this.$root.dataset.center);
         const style = this.mapStyle();
@@ -1121,24 +1250,30 @@ window.muniShell = function ({ hall, category }) {
         };
         const maxBounds = this.hallMaxBounds();
         if (maxBounds) mapOptions.maxBounds = maxBounds;
+        this._initialMapViewportReady = false;
         this.map = new maplibregl.Map(mapOptions);
         this.rawMap().addControl(new maplibregl.NavigationControl({ showCompass: false }));
-        this.rawMap().on('style.load', () => { this._mapStyleLoaded = true; });
-        this.rawMap().on('load', () => {
+        const initializeViewport = () => {
           this._mapStyleLoaded = true;
           this.mapError = null;
           this.installHallBoundary();
+          if (this._initialMapViewportReady) return;
+          // Fit before the first request; constructor/resize move events are not the user's viewport.
           this.fitMapToHall({ duration: 0 });
-          this.refreshGeo();
-        });
-        this.rawMap().on('moveend', () => {
+          this._initialMapViewportReady = true;
           if (this.category === 'service_requests') this.scheduleGeoRefresh();
+          else this.refreshGeo();
+        };
+        this.rawMap().on('style.load', initializeViewport);
+        this.rawMap().on('load', initializeViewport);
+        this.rawMap().on('moveend', () => {
+          if (this._initialMapViewportReady && this.category === 'service_requests') this.scheduleGeoRefresh();
         });
         this.rawMap().on('error', (e) => {
           if (e?.error?.message) this.mapError = e.error.message;
         });
       }
-      if (this.category !== 'service_requests' || this.mapStyleReady()) await this.refreshGeo();
+      if (!initialMap && this.mapStyleReady()) await this.refreshGeo();
       this.$nextTick(() => this.resizeMap());
     },
 
@@ -1154,6 +1289,7 @@ window.muniShell = function ({ hall, category }) {
       }
       this.mapError = null;
       this._mapStyleLoaded = false;
+      this._lastGeoKey = null;
       this.rawMap().once('style.load', () => {
         this._mapStyleLoaded = true;
         this.installHallBoundary();
@@ -1296,6 +1432,7 @@ window.muniShell = function ({ hall, category }) {
 
     enrichGeojson(geojson) {
       const features = (geojson.features || []).filter((f) => {
+        if (this.category === 'service_requests') return true;
         const coords = this.featureAnchorCoords(f);
         return !coords || this.pointInHallBoundary(coords);
       }).map((f) => {
@@ -1376,6 +1513,7 @@ window.muniShell = function ({ hall, category }) {
 
     clearMapLayers() {
       if (!this.mapStyleReady()) return;
+      this._installedGeoCategory = null;
       try {
         [
           'records-clusters', 'records-cluster-count', 'records-pts',
@@ -1402,34 +1540,73 @@ window.muniShell = function ({ hall, category }) {
 
     scheduleGeoRefresh() {
       if (this._geoRefreshTimer) clearTimeout(this._geoRefreshTimer);
-      this._geoRefreshTimer = setTimeout(() => this.refreshGeo(), this.category === 'service_requests' ? 300 : 2000);
+      if (this.category === 'service_requests' && this.rawMap() && this._initialMapViewportReady &&
+          this._lastGeoKey !== this.geoRequestURL()) {
+        this.geoFeatureCount = null;
+        if (this.listScope === 'map') {
+          this._requests.rows?.controller.abort();
+          this._rowRun++;
+          this.mapBbox = null; this.rows = []; this.nextCursor = null; this.rowsLoading = true;
+        }
+      }
+      this._geoRefreshTimer = setTimeout(() => this.refreshGeo(), 200);
+    },
+
+    geoRequestURL() {
+      const qs = this.geoQueryParams();
+      const requests = this.category === 'service_requests';
+      if (requests) {
+        const bounds = this.rawMap().getBounds();
+        const bbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
+        qs.set('bbox', bbox.map(value => value.toFixed(6)).join(','));
+        qs.delete('limit');
+      }
+      return `/api/category/${encodeURIComponent(this.category)}/${requests ? 'map' : 'geo'}?${qs}`;
+    },
+
+    refresh311Lifecycle() {
+      if (this.category !== 'service_requests' || this.defaultWidget !== 'map' || !this.rawMap()) return;
+      if (typeof document !== 'undefined' && document.hidden) return;
+      this._lastGeoKey = null;
+      return this.refreshGeo().then(() => {
+        if (this.listScope === 'map' && this.mapBbox) this.loadRows();
+      });
     },
 
     async refreshGeo() {
-      const cat = this.category;
-      if (!this.rawMap() || this.defaultWidget !== 'map') return;
-      const qs = this.geoQueryParams();
-      const requestKey = `${cat}?${qs.toString()}`;
-      this._lastGeoRequest = requestKey;
-      let r;
+      if (!this.rawMap() || this.defaultWidget !== 'map' || this._initialMapViewportReady === false) return;
+      const context = this.requestContext();
+      const url = this.geoRequestURL();
+      if (this._lastGeoKey === url) return;
+      this._lastGeoKey = url;
       try {
-        r = await fetch(`/api/category/${encodeURIComponent(this.category)}/geo?${qs.toString()}`);
-      } catch (_) {
-        if (cat === this.category) this.geoFeatureCount = null;
-        return;
-      }
-      if (!r.ok || cat !== this.category || this._lastGeoRequest !== requestKey) return;
-      const geojson = this.enrichGeojson(await r.json());
-      if (this._lastGeoRequest !== requestKey) return;
-      if (cat === this.category) this.geoFeatureCount = geojson.features?.length || 0;
-      if (cat === 'service_requests' && this.listScope === 'map') this.loadRows();
-      if (cat !== this.category) return;
-      if (this.mapStyleReady()) {
-        this.installGeoLayer(geojson);
-      } else {
-        this.rawMap().once('style.load', () => {
-          if (this.category === cat) this.installGeoLayer(geojson);
+        const data = await this.requestJSON('geo', url);
+        const geojson = this.enrichGeojson(data);
+        this.geoFeatureCount = data.represented_count ?? geojson.features?.length ?? 0;
+        this.mapError = null;
+        if (this.category === 'service_requests') {
+          const nextBbox = data.bbox?.join(',') || null;
+          if (nextBbox && nextBbox !== this.mapBbox) {
+            this.mapBbox = nextBbox;
+            if (this.listScope === 'map') { this.resetListCursor(); this.loadRows(); }
+          }
+          this.nearbyRequests = [];
+        }
+        if (this.mapStyleReady()) this.installGeoLayer(geojson);
+        else this.rawMap().once('style.load', () => {
+          if (context === this.requestContext() && this._lastGeoKey === url && url === this.geoRequestURL()) this.installGeoLayer(geojson);
         });
+      } catch (error) {
+        if (this._lastGeoKey === url && context === this.requestContext() && error.name !== 'AbortError') {
+          this._lastGeoKey = null; this.geoFeatureCount = null; this.mapError = error.message;
+          if (this.category === 'service_requests' && this.mapStyleReady()) {
+            this.installGeoLayer({ type: 'FeatureCollection', features: [] });
+          }
+          if (this.category === 'service_requests') {
+            this.mapBbox = null;
+            if (this.listScope === 'map') { this.rows = []; this.rowsLoading = false; this.nextCursor = null; }
+          }
+        }
       }
     },
 
@@ -1473,10 +1650,8 @@ window.muniShell = function ({ hall, category }) {
 
     clusterTextFont() {
       const layers = this.rawMap()?.getStyle?.()?.layers || [];
-      const expressions = new Set(['get', 'literal', 'match', 'case', 'coalesce', 'step', 'interpolate', 'let', 'var']);
       const fonts = layers.map(layer => layer.layout?.['text-font']).find(value =>
-        Array.isArray(value) && value.length && !expressions.has(value[0]) &&
-        value.every(font => typeof font === 'string'));
+        Array.isArray(value) && value.length && value.every(font => typeof font === 'string'));
       return fonts || ['Noto Sans Regular'];
     },
 
@@ -1492,10 +1667,19 @@ window.muniShell = function ({ hall, category }) {
       const pointGeojson = this.geojsonWithGeometryTypes(geojson, ['Point']);
       const polygonGeojson = this.geojsonWithGeometryTypes(geojson, ['Polygon', 'MultiPolygon']);
       const hasPolygons = theme.polygon && (polygonGeojson.features || []).length > 0;
-      const cluster = this.useCluster(pointGeojson);
+      const cluster = this.category !== 'service_requests' && this.useCluster(pointGeojson);
       const pointColor = this.mapPointColor();
       const accent = theme.accent;
       const fit = this._geoFitPending && this.category !== 'service_requests';
+
+      // Pans can replace thousands of dots; keep the layers and update only their source.
+      if (this.category === 'service_requests' && this._installedGeoCategory === 'service_requests' &&
+          this.rawMap().getSource('records-points') &&
+          this.rawMap().getLayer('records-pts') && this.rawMap().getLayer('records-selection-pt')) {
+        this.rawMap().getSource('records-points').setData(pointGeojson);
+        this.updateSelectedMapFilter();
+        return;
+      }
 
       this.clearMapLayers();
       try {
@@ -1503,7 +1687,7 @@ window.muniShell = function ({ hall, category }) {
         this.rawMap().addSource('records-points', {
           type: 'geojson',
           data: pointGeojson,
-          cluster: cluster,
+          cluster,
           clusterMaxZoom: 14,
           clusterRadius: 50
         });
@@ -1630,7 +1814,12 @@ window.muniShell = function ({ hall, category }) {
           }
           this._geoFitPending = false;
         }
-      } catch (_) { return; }
+        this._installedGeoCategory = this.category;
+      } catch (error) {
+        this.mapError = 'Unable to display map data.';
+        console.warn('Muni map layers:', error);
+        return;
+      }
 
       this.bindMapLayerEvents('records-pts');
       if (hasPolygons) this.bindMapLayerEvents('records-polygons-fill');
@@ -1793,50 +1982,35 @@ window.muniShell = function ({ hall, category }) {
     },
 
     async onMapPointClick(e) {
-      if (this.category === 'service_requests') {
-        const point = e.point || { x: 0, y: 0 };
-        const candidates = this.rawMap().queryRenderedFeatures?.(
-          [[point.x - 8, point.y - 8], [point.x + 8, point.y + 8]],
-          { layers: ['records-pts'] }
-        ) || e.features;
-        const unique = [...new Map(candidates.filter(f => f.properties?.external_id)
-          .map(f => [`${f.properties.hall}:${f.properties.external_id}`, f])).values()];
-        if (unique.length > 1) {
-          this.nearbyRequests = unique;
+      if (this.category === 'service_requests' && e.point && this.rawMap()?.queryRenderedFeatures) {
+        const seen = new Set();
+        const nearby = this.rawMap().queryRenderedFeatures(e.point, { layers: ['records-pts'] }).filter((item) => {
+          const key = `${item.properties?.hall}:${item.properties?.external_id}`;
+          if (!item.properties?.external_id || seen.has(key)) return false;
+          seen.add(key); return true;
+        });
+        if (nearby.length > 1) {
+          this.nearbyRequests = nearby.map(item => ({ ...item.properties, geometry: item.geometry }));
           return;
         }
       }
-      await this.selectMapFeature(e.features[0] || {});
-    },
-
-    async selectNearbyRequest(feature) {
       this.nearbyRequests = [];
-      await this.selectMapFeature(feature);
+      const feature = e.features[0] || {};
+      this.selectMapFeature(feature);
     },
 
-    async selectMapFeature(feature) {
+    selectMapFeature(feature) {
       const props = feature.properties || {};
-      const id = props.external_id;
-      if (!id) return;
-      let row = this.rows.find(r => r.external_id === id);
-      if (!row && props._source_scope && props._source_name) {
-        const qs = new URLSearchParams({ hall: this.hall });
-        const r = await fetch(`/api/records/${props._source_scope}/${props._source_name}/${encodeURIComponent(id)}?${qs}`);
-        if (r.ok) row = await r.json();
-      }
-      if (!row) row = props;
-      if (row) {
-        this.select({
-          ...props,
-          ...row,
-          geometry: row.geometry || feature.geometry,
-          _record_class: row._record_class || props._record_class,
-          _source_scope: row._source_scope || props._source_scope,
-          _source_name: row._source_name || props._source_name,
-          _source_slug: row._source_slug || [props._source_scope, props._source_name].filter(Boolean).join('/')
-        }, { source: 'map' });
-        if (this.isMobileViewport() && !this.isParkingRecord(row)) this.mobileListOpen = true;
-      }
+      if (!props.external_id) return;
+      const row = this.rows.find(r => String(r.external_id) === String(props.external_id) && (!r.hall || !props.hall || r.hall === props.hall));
+      this.select({ ...props, ...(row || {}), geometry: row?.geometry || feature.geometry,
+        _compact: row ? row._compact : true }, { source: 'map' });
+      if (this.isMobileViewport() && !this.isParkingRecord(row || props)) this.mobileListOpen = true;
+    },
+
+    selectNearbyRequest(request) {
+      this.nearbyRequests = [];
+      this.selectMapFeature({ properties: request, geometry: request.geometry });
     },
 
     rowIsHovered(row) {
@@ -1856,12 +2030,15 @@ window.muniShell = function ({ hall, category }) {
 
     attachStream() {
       if (this.eventSource) { this.eventSource.close(); this.eventSource = null; }
+      const context = this.requestContext();
       const es = new EventSource(`/stream/category/${encodeURIComponent(this.category)}?hall=${this.hall}`);
       es.onmessage = (ev) => {
+        if (context !== this.requestContext()) return;
         try {
           const row = JSON.parse(ev.data);
-          this.mergeStreamRow(row);
-          this.scheduleGeoRefresh();
+          if (this.category === 'service_requests') this.loadRows();
+          else this.mergeStreamRow(row);
+          this._lastGeoKey = null; this.scheduleGeoRefresh();
         } catch (_) { /* ignore */ }
       };
       this.eventSource = es;
