@@ -1,0 +1,10 @@
+[Unit]
+Description=Check Muni app through the local proxy
+After=muni-app.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/muni/runtime.conf
+UMask=0077
+ExecStart=/opt/muni/health-check.sh
+TimeoutStartSec=2min

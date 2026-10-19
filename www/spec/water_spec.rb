@@ -38,11 +38,19 @@ RSpec.describe 'Charles River region and Water Quality API' do
     expect(last_response.body).to include('>Datasets</h1>', 'Check schedule', 'Records retained')
   end
 
-  it 'keeps river access in the municipality selector without a top-right link' do
+  it 'labels the direct river page without adding a selectable river control' do
+    get '/water/charles'
+    expect(last_response.body).to include('<option value="" selected disabled hidden>Charles River</option>')
+    expect(last_response.body).not_to include('value="charles"')
+    expect(last_response.body).to match(/title="Map".*?data-icon="map"/m)
+  end
+
+  it 'keeps Charles River controls out of municipal navigation' do
     %w[cambridge boston].each do |hall|
       get "/?hall=#{hall}"
       expect(last_response.status).to eq(200)
-      expect(last_response.body).to include('<option value="charles">Charles River</option>')
+      expect(last_response.body).not_to include('value="charles"', 'href="/water/charles"', 'title="Water"')
+      expect(last_response.body).to include('value="subway"')
       expect(last_response.body).not_to include('href="/water/charles">Charles River ↗</a>')
       expect(last_response.body).not_to include('aria-label="Water Quality"')
     end

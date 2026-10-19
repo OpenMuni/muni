@@ -76,7 +76,7 @@ test('retry resets style readiness and restores data on the new style event', ()
 test('cluster labels use the basemap font or the available Protomaps fallback', () => {
   for (const [styleLayers, expected] of [
     [[], ['Noto Sans Regular']],
-    [[{layout: {'text-font': ['get', 'font']}}], ['get', 'font']],
+    [[{layout: {'text-font': ['get', 'font']}}], ['Noto Sans Regular']],
     [[{layout: {'text-font': ['Roboto Regular']}}], ['Roboto Regular']]
   ]) {
     const {shell} = fixture();

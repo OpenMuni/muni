@@ -1650,8 +1650,10 @@ window.muniShell = function ({ hall, category }) {
 
     clusterTextFont() {
       const layers = this.rawMap()?.getStyle?.()?.layers || [];
+      const expressions = new Set(['get', 'literal', 'match', 'case', 'coalesce', 'step', 'interpolate', 'let', 'var']);
       const fonts = layers.map(layer => layer.layout?.['text-font']).find(value =>
-        Array.isArray(value) && value.length && value.every(font => typeof font === 'string'));
+        Array.isArray(value) && value.length && !expressions.has(value[0]) &&
+        value.every(font => typeof font === 'string'));
       return fonts || ['Noto Sans Regular'];
     },
 

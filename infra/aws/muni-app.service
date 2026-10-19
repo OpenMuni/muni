@@ -1,0 +1,20 @@
+[Unit]
+Description=Muni single web and collector writer behind the ALB
+BindsTo=data.mount
+Requires=docker.service data.mount
+After=docker.service data.mount network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/muni/runtime.conf
+ExecStartPre=/usr/bin/mountpoint -q /data
+ExecStartPre=-/usr/bin/docker rm -f muni-app
+ExecStart=/usr/bin/docker run --name muni-app --rm --env-file /etc/muni/app.env --mount type=bind,src=/data,dst=/data --publish 8080:8080 --log-driver awslogs --log-opt awslogs-region=${AWS_DEFAULT_REGION} --log-opt awslogs-group=${CLOUDWATCH_LOG_GROUP} --log-opt awslogs-stream=application ${MUNI_IMAGE} bin/start web
+ExecStop=/usr/bin/docker stop -t 35 muni-app
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=45
+
+[Install]
+WantedBy=multi-user.target
