@@ -5,7 +5,7 @@ RUN go mod download
 COPY build/caddy/main.go ./
 RUN CGO_ENABLED=0 go build -trimpath -o /caddy .
 
-FROM ruby:3.3.12-slim-trixie AS base
+FROM ruby:4.0.7-slim-trixie AS base
 
 ENV BUNDLE_WITHOUT=development:test \
     BUNDLE_DEPLOYMENT=1 \
