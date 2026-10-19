@@ -114,15 +114,15 @@ fallback without making a second local copy. Existing `tiles/` and `report_media
 directories are synced without remote deletions. A successful upload is not a
 restore drill; test restoration separately.
 
-An exclusive lock prevents concurrent backups. Capture requires space for
+One exclusive lock covers backups and artifact cleanup. Capture requires space for
 the database plus the greater of 2 GiB or 10% of the data filesystem. Failures retain
 previous copies and trigger the existing service failure alert. Owned interrupted
 staging directories are cleaned under the lock; unrecognized files are preserved.
 `BACKUP_LOCAL_KEEP` defaults to 2 completed snapshots, independent of how many runs
 occur per day. Only snapshots with verified receipts enter automated retention.
 Legacy snapshots require explicit verification/adoption or an inventoried cleanup.
-S3 keeps database snapshots for 60 days. Preserve installation-specific
-asset-version policies.
+S3 keeps database snapshots for 60 days. Deployment archives under `operations/`
+also expire after 60 days. Preserve installation-specific asset-version policies.
 
 `MUNI_BACKUP_MODE` defaults to `local`, preserving existing app behavior. AWS uses
 `external`, with `MUNI_BACKUP_STATUS_PATH=/data/backups/offsite/status.json`.
@@ -198,3 +198,14 @@ these until the next scheduled run succeeds. Never commit those private files.
 4. Confirm app health, external status, metrics and the next scheduled run. On
    failure restore the captured scripts/configuration/image and local backup mode.
    A deployment rollback must never overwrite the live database.
+
+Use `archive-artifacts.py --manifest /private/path/inventory.json --protect
+/absolute/current-release --protect /absolute/previous-release <explicit paths>`
+to inventory completed artifacts. Review the inventory, then invoke the same
+script with `--manifest ... --bucket ... --apply`. It checks allowed roots,
+symlinks, protected releases, open descriptors/mappings, recent changes and
+inventory stability; uploads and verifies an archive, checksum and manifest;
+then removes only unchanged inventoried entries. The offsite cache is excluded.
+Archive operations hold the backup lock and need temporary space for one archive.
+Do not archive uncertain or active work. Restrict host S3 access to required
+prefixes; preserve existing non-backup role permissions and asset retention rules.

@@ -200,11 +200,11 @@ resource "aws_iam_role_policy" "backup_and_secrets" {
       { Effect = "Allow", Action = ["sns:Publish"], Resource = aws_sns_topic.alerts.arn },
       {
         Effect    = "Allow", Action = ["s3:ListBucket"], Resource = aws_s3_bucket.backups.arn
-        Condition = { StringLike = { "s3:prefix" = ["db/*", "tiles/*", "report_media/*", "releases/*"] } }
+        Condition = { StringLike = { "s3:prefix" = ["db/*", "tiles/*", "report_media/*", "operations/*", "releases/*"] } }
       },
       {
         Effect   = "Allow", Action = ["s3:GetObject", "s3:PutObject"]
-        Resource = [for prefix in ["db", "tiles", "report_media", "releases"] : "${aws_s3_bucket.backups.arn}/${prefix}/*"]
+        Resource = [for prefix in ["db", "tiles", "report_media", "operations", "releases"] : "${aws_s3_bucket.backups.arn}/${prefix}/*"]
       },
       { Effect = "Allow", Action = ["ssm:GetParameter", "ssm:GetParameters"], Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.project_name}/*" },
       { Effect = "Allow", Action = ["logs:CreateLogStream", "logs:PutLogEvents", "logs:DescribeLogStreams"], Resource = "${aws_cloudwatch_log_group.app.arn}:*" }
@@ -312,6 +312,14 @@ resource "aws_s3_bucket_lifecycle_configuration" "backups" {
     filter { prefix = "db/" }
     expiration { days = 60 }
     noncurrent_version_expiration { noncurrent_days = 7 }
+  }
+  rule {
+    id     = "expire-operations-archives"
+    status = "Enabled"
+    filter { prefix = "operations/" }
+    expiration { days = 60 }
+    noncurrent_version_expiration { noncurrent_days = 1 }
+    abort_incomplete_multipart_upload { days_after_initiation = 1 }
   }
   depends_on = [aws_s3_bucket_versioning.backups]
 }
