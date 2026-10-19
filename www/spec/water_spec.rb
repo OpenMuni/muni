@@ -50,7 +50,7 @@ RSpec.describe 'Charles River region and Water Quality API' do
       get "/?hall=#{hall}"
       expect(last_response.status).to eq(200)
       expect(last_response.body).not_to include('value="charles"', 'href="/water/charles"', 'title="Water"')
-      expect(last_response.body).to include('value="subway"')
+      expect(last_response.body).not_to include('value="subway"')
       expect(last_response.body).not_to include('href="/water/charles">Charles River ↗</a>')
       expect(last_response.body).not_to include('aria-label="Water Quality"')
     end

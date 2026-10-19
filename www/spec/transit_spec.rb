@@ -16,12 +16,15 @@ RSpec.describe Muni::Www::App do
     get '/mobility/subway'
     expect(last_response).to be_ok
     expect(last_response.body).to include('MBTA Subway', '/js/subway.js')
-    expect(last_response.body).not_to include('/transit/assets/index.js')
+    expect(last_response.body).not_to include('/transit/assets/index.js', 'Charles River', '/water/charles')
   end
 
-  it 'offers city home pages in the regional selector' do
-    get '/mobility/subway'
-    expect(last_response.body).to include('action="/"', 'value="cambridge"', 'value="boston"')
+  it 'offers only city home pages in the subway selector and preserves the selected city' do
+    get '/mobility/subway?hall=boston'
+    expect(last_response.body).to include('action="/"', 'value="cambridge"', 'value="boston" selected',
+                                          'aria-label="Municipality"', 'href="/?hall=boston"')
+    expect(last_response.body).not_to include('value="subway"')
+    expect(last_response.headers['set-cookie'].to_s).to include('hall=boston')
     expect(last_response.body).to include('this.form.requestSubmit()')
     get '/?hall=boston'
     expect(last_response).to be_ok

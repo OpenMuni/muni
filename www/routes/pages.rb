@@ -108,6 +108,8 @@ module Muni
         end
 
         get '/mobility/subway' do
+          @hall = page_hall!
+          response.set_cookie('hall', value: @hall.slug, path: '/', http_only: false)
           @mobility_region = true
           configure_map!
           erb :subway, layout: :layout

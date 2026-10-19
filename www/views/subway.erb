@@ -4,12 +4,11 @@
 <div class="shell native-app subway-shell" x-data="muniSubway()">
   <header class="topbar ui-material native-chrome">
     <%= erb :_municipality_selector, layout: false %>
-    <nav class="topbar__nav" aria-label="Site"><a class="topbar__link" href="/water/charles">Charles River</a></nav>
   </header>
   <main class="shell__body subway-body">
     <nav class="rail native-sidebar" aria-label="Apps"><div class="rail__primary">
-      <a class="rail__btn rail__btn--link" href="/" title="Map" aria-label="Map"><span class="rail__icon" data-icon="map"></span><span class="rail__label">Map</span></a>
-      <a class="rail__btn rail__btn--link is-active" href="/mobility/subway" title="Train" aria-label="Train" aria-current="page"><span class="rail__icon" data-icon="train"></span><span class="rail__label">Train</span></a>
+      <a class="rail__btn rail__btn--link" href="/?hall=<%= @hall.slug %>" title="Map" aria-label="Map"><span class="rail__icon" data-icon="map"></span><span class="rail__label">Map</span></a>
+      <a class="rail__btn rail__btn--link is-active" href="/mobility/subway?hall=<%= @hall.slug %>" title="Train" aria-label="Train" aria-current="page"><span class="rail__icon" data-icon="train"></span><span class="rail__label">Train</span></a>
     </div></nav>
     <div class="subway-workspace">
       <header class="subway-heading">
