@@ -175,7 +175,10 @@ module Muni
 
       def record_payload(row)
         payload = row.to_h
-        payload = payload.merge(Muni::ServiceRequestPolicy.enrich(payload)) if row.is_a?(Muni::Records::ServiceRequest)
+        if row.is_a?(Muni::Records::ServiceRequest)
+          payload = payload.merge(Muni::ServiceRequestPolicy.enrich(payload))
+          payload[:map_signal] = Muni::ServiceRequestPolicy.map_signal(payload)
+        end
         payload.transform_values { |value| value.is_a?(Time) ? value.utc.iso8601 : value }
       end
 
@@ -282,6 +285,9 @@ module Muni
       def category_records(slug, limit: nil)
         cat = Muni::View.find(slug) or raise NotFound, 'unknown category'
         lim = query_limit(limit || params['limit'])
+        scoped = service_request_scoped_records(cat, lim)
+        return scoped if scoped
+
         pair_limit = public_food_truck_category?(cat) || default_service_request_category?(cat) ? 5_000 : lim
         pairs = category_pairs(cat, params['hall'], limit: pair_limit)
         return food_truck_group_payloads(pairs).first(lim) if public_food_truck_category?(cat)
@@ -297,6 +303,8 @@ module Muni
 
       def category_geo(slug, limit: nil)
         cat = Muni::View.find(slug) or raise NotFound, 'unknown category'
+        return service_request_map_geo(cat, limit: limit) if cat.slug.to_s == 'service_requests'
+
         lim = query_limit(limit || params['limit'], max: geo_limit_max(slug))
         pair_limit = default_service_request_category?(cat) ? 5_000 : lim
         pairs = category_pairs(cat, params['hall'], limit: pair_limit)
@@ -337,6 +345,10 @@ module Muni
       def source_geo(source_slug, limit: nil)
         source = source!(source_slug)
         category = category_for_source(source_slug)
+        if source.emits == Muni::Records::ServiceRequest
+          return service_request_map_geo(Muni::View.find('service_requests'), limit: limit)
+        end
+
         lim = query_limit(limit || params['limit'], max: source_geo_limit_max(source_slug))
         store_limit = source_service_requests_default?(source, category) ? nil : lim
         where = source_record_filters(source_slug, source, category&.slug)
@@ -425,6 +437,119 @@ module Muni
         )
       end
 
+      # The map has its own bounded-in-time query. A list or detail request can
+      # still show an older open report or a closed report.
+      def service_request_map_pairs(cat, hall)
+        now = Time.now.utc
+        cutoff = now - Muni::ServiceRequestPolicy::MAP_WINDOW_SECONDS
+        boundary = hall_boundary(hall)
+        bounds = service_request_map_bounds
+        definitions = Muni::View.category_filter_definitions(cat.slug, hall)
+        pairs = Muni::View.sources_for(cat.slug, hall).flat_map do |source_slug|
+          source = Muni::Registry.source(source_slug)
+          next [] unless source
+
+          service_request_source_map_pairs(source, source_slug, cat, definitions, hall, cutoff..now,
+                                           { boundary: boundary, bounds: bounds, now: now })
+        end
+        Muni::View.filter_pairs(pairs, post_filters(definitions)).sort_by { |row, _| -row.opened_at.to_f }
+      end
+
+      def service_request_source_map_pairs(source, slug, cat, definitions, hall, window, area)
+        where = source_record_filters(slug, source, cat.slug, definitions: definitions, hall: hall)
+        where.delete(:since)
+        where.delete(:since_field)
+        status_sql = Sequel.function(:lower, Sequel.function(:trim, :status))
+        ds = Muni::Store.db[source.emits.table_name.to_sym]
+                        .where(where)
+                        .where(opened_at: window, closed_at: nil)
+                        .where(status_sql => Muni::ServiceRequestPolicy::ACTIVE_STATUSES)
+        bounds = area[:bounds]
+        ds.all.filter_map do |stored|
+          row = Muni::Store.hydrate(source.emits, stored, source.emits.schema_def)
+          next unless Muni::ServiceRequestPolicy.map_eligible?(row, now: area[:now])
+
+          lon, lat = row.location
+          next unless lon && lat && Muni::Helpers::Geo.boundary_contains?(area[:boundary], lon, lat)
+          next if bounds && !(lon.between?(bounds[0], bounds[2]) && lat.between?(bounds[1], bounds[3]))
+
+          [row, slug]
+        end
+      end
+
+      def service_request_map_geo(cat, limit: nil)
+        pairs = service_request_map_pairs(cat, params['hall'])
+        pairs = pairs.first(limit) if limit
+        features = pairs.map do |row, source_slug|
+          scope, name = source_slug.split('/', 2)
+          {
+            type:       'Feature',
+            geometry:   { type: 'Point', coordinates: row.location },
+            properties: {
+              external_id: row.external_id, hall: row.hall, case_type: row.case_type,
+              address: row.address, status: row.status,
+              map_signal: Muni::ServiceRequestPolicy.map_signal(row),
+              _source_scope: scope, _source_name: name, _source_slug: source_slug
+            }
+          }
+        end
+        { type: 'FeatureCollection', features: features, represented_count: features.length }
+      end
+
+      def service_request_map_bounds
+        return nil if params['bbox'].to_s.empty?
+
+        values = params['bbox'].to_s.split(',').map { |value| Float(value) }
+        valid = values.length == 4 && values.all?(&:finite?) && values[0] < values[2] && values[1] < values[3]
+        raise Error, 'invalid map bounds' unless valid
+
+        values
+      rescue ArgumentError
+        raise Error, 'invalid map bounds'
+      end
+
+      def service_request_scoped_records(cat, limit)
+        return nil unless cat.slug.to_s == 'service_requests'
+
+        pairs = if params['map_view'].to_s == '1'
+                  raise Error, 'map view requires bounds' if params['bbox'].to_s.empty?
+
+                  service_request_map_pairs(cat, params['hall']).first(limit)
+                elsif params['history_view'].to_s == '1'
+                  service_request_history_pairs(cat, params['hall'], limit)
+                end
+        pairs&.map { |row, source| Data.record_payload(row).merge('_source_slug' => source) }
+      end
+
+      def service_request_history_pairs(cat, hall, limit)
+        offset = Integer(params['offset'] || 0)
+        raise Error, 'invalid history offset' unless offset.between?(0, 100_000)
+
+        definitions = Muni::View.category_filter_definitions(cat.slug, hall)
+        pairs = Muni::View.sources_for(cat.slug, hall).flat_map do |slug|
+          source = Muni::Registry.source(slug)
+          next [] unless source
+
+          service_request_history_source_pairs(source, slug, cat, definitions, hall, offset + limit)
+        end
+        Muni::View.filter_pairs(pairs, post_filters(definitions))
+                  .sort_by { |row, _| [-row.opened_at.to_f, row.external_id] }
+                  .drop(offset).first(limit)
+      rescue ArgumentError
+        raise Error, 'invalid history offset'
+      end
+
+      def service_request_history_source_pairs(source, slug, cat, definitions, hall, limit)
+        where = source_record_filters(slug, source, cat.slug, definitions: definitions, hall: hall)
+        since = where.delete(:since)
+        where.delete(:since_field)
+        ds = Muni::Store.db[source.emits.table_name.to_sym].where(where)
+        ds = ds.where { opened_at >= since } if since
+        ds.order(Sequel.desc(:opened_at), :external_id).limit(limit).all.map do |stored|
+          [Muni::Store.hydrate(source.emits, stored, source.emits.schema_def), slug]
+        end
+      end
+
       def category_pairs(cat, hall, limit:)
         return event_pairs(cat, hall, limit: limit) if Muni::View.event_category?(cat.slug)
 
@@ -486,7 +611,8 @@ module Muni
       end
 
       def default_service_request_category?(cat)
-        cat.slug.to_s == 'service_requests' && lifecycle_service_request_time_range? &&
+        cat.slug.to_s == 'service_requests' && params['history_view'].to_s != '1' &&
+          lifecycle_service_request_time_range? &&
           params['time_field'].to_s.empty?
       end
 
@@ -801,6 +927,7 @@ module Muni
         return nil if lifecycle_service_requests?(category_slug)
 
         range = params['time_range'] || Muni::View.default_time_range(category_slug)
+        return nil if category_slug.to_s == 'service_requests' && range == 'all'
         if Muni::View.latest_time_range?(range)
           return source_window_since(source_slug, source, Muni::View.latest_window_seconds(category_slug), time_field)
         end

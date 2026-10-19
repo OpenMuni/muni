@@ -20,7 +20,7 @@ RUN apt-get update -qq && \
       curl ca-certificates tini && \
     rm -rf /var/lib/apt/lists/*
 
-# Caddy runs beside Puma and the collector on the single data-owning Machine.
+# Caddy runs beside Puma and the collector on the single data-owning host.
 COPY --from=proxy /caddy /usr/local/bin/caddy
 
 # Replace the vulnerable bundled resolver as well as locking the app's version.

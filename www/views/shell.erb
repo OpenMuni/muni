@@ -8,7 +8,6 @@
   <header class="topbar ui-material native-chrome">
     <%= erb :_municipality_selector, layout: false %>
     <nav class="topbar__nav" aria-label="Site">
-      <%= erb :_water_region_link, layout: false %>
       <a class="topbar__link" href="/about?hall=<%= @hall.slug %>">About</a>
     </nav>
   </header>
@@ -61,7 +60,7 @@
       <header class="list-pane__head">
         <h2 x-text="categoryTitle"></h2>
         <div class="list-pane__tools ui-toolbar">
-          <span class="muted" x-text="rowsLoading ? 'Loading…' : `${rows.length} items`"></span>
+          <span class="muted" x-text="rowsLoading ? 'Loading…' : category === 'service_requests' && listScope === 'map' ? `${rows.length} shown of ${(geoFeatureCount || 0).toLocaleString()} in view` : category === 'service_requests' ? `${rows.length} recent items` : `${rows.length} items`"></span>
           <button
             type="button"
             class="filter-toggle open-now-toggle ui-button ui-button--toolbar"
@@ -89,6 +88,12 @@
           </button>
         </div>
       </header>
+      <div class="list-pane__311-scope" x-show="category === 'service_requests'" x-cloak role="group" aria-label="311 request list">
+        <button type="button" :aria-pressed="listScope === 'map'" :class="{ 'is-active': listScope === 'map' }" @click="set311ListScope('map')">In map view</button>
+        <button type="button" :aria-pressed="listScope === 'history'" :class="{ 'is-active': listScope === 'history' }" @click="set311ListScope('history')">Requests &amp; history</button>
+      </div>
+      <p class="list-pane__311-context muted" x-show="category === 'service_requests'" x-cloak role="status"
+         x-text="listScope === 'map' ? `${(geoFeatureCount || 0).toLocaleString()} open or active requests in view, reported in the last 30 days` : 'Citywide requests, including older and closed reports'"></p>
       <ul class="list-pane__rows" x-ref="listRows">
         <template x-if="rowsLoading">
           <template x-for="i in 6" :key="'skel-' + i">
@@ -106,7 +111,9 @@
           <template x-for="row in rows" :key="row.external_id">
             <li class="row ui-list-row"
                 :class="{ 'is-active': selected?.external_id === row.external_id, 'is-hovered': rowIsHovered(row) }"
+                role="button" tabindex="0" :aria-label="`${rowTitle(row)}. ${rowSubtitle(row)}`"
                 @click="select(row)"
+                @keydown.enter="select(row)" @keydown.space.prevent="select(row)"
                 @mouseenter="hoveredId = row.external_id"
                 @mouseleave="hoveredId = null">
               <span class="row__dot" :class="rowDotClass(row)" :style="rowDotStyle(row)"></span>
@@ -180,6 +187,8 @@
           </li>
         </template>
       </ul>
+      <button type="button" class="list-pane__load-more" x-show="category === 'service_requests' && listScope === 'history' && historyHasMore" x-cloak
+              :disabled="historyLoadingMore" @click="loadMoreHistory()" x-text="historyLoadingMore ? 'Loading…' : 'Load older requests'"></button>
     </section>
 
     <div
@@ -222,6 +231,25 @@
 
     <section class="body-pane native-map" :class="{ 'body-pane--events': eventCategory() }">
       <div id="map" class="body-pane__map" :class="{ 'map--light': !window.MUNI_MAPTILER_KEY }" x-show="defaultWidget === 'map' && !eventCategory()"></div>
+      <div class="map-311-guide" x-show="category === 'service_requests'" x-cloak>
+        <strong>Open or active requests</strong>
+        <span>Reported in the last 30 days · one dot per request</span>
+        <div class="map-311-guide__legend" aria-label="Map dot colors">
+          <span><i class="map-311-dot map-311-dot--green" aria-hidden="true"></i> Acknowledged or in progress</span>
+          <span><i class="map-311-dot map-311-dot--yellow" aria-hidden="true"></i> Open, awaiting action</span>
+          <span><i class="map-311-dot map-311-dot--red" aria-hidden="true"></i> No reported update in 14 days</span>
+          <span><i class="map-311-dot map-311-dot--grey" aria-hidden="true"></i> Other active status</span>
+        </div>
+      </div>
+      <div class="map-nearby" role="dialog" aria-label="Requests at this location" x-show="nearbyRequests.length > 1" x-cloak @keydown.escape.stop="nearbyRequests = []">
+        <strong x-text="`${nearbyRequests.length} requests here`"></strong>
+        <button type="button" aria-label="Close nearby requests" @click="nearbyRequests = []">×</button>
+        <ul>
+          <template x-for="feature in nearbyRequests" :key="`${feature.properties.hall}:${feature.properties.external_id}`">
+            <li><button type="button" @click="selectNearbyRequest(feature)" x-text="`${feature.properties.case_type || '311 request'} · ${feature.properties.address || feature.properties.external_id}`"></button></li>
+          </template>
+        </ul>
+      </div>
       <div class="map-empty" x-show="defaultWidget === 'map' && !mapError && geoFeatureCount === 0 && !rowsLoading" x-cloak>
         <span x-text="mapEmptyMessage"></span>
       </div>

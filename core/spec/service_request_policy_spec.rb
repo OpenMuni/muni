@@ -30,4 +30,20 @@ RSpec.describe Muni::ServiceRequestPolicy do
 
     expect(result).to include(display_status: 'unexpected workflow state', lifecycle_status: 'pending')
   end
+
+  it 'keeps map eligibility tied to authoritative status and report date' do
+    recent = now - (24 * 60 * 60)
+    old = now - (31 * 24 * 60 * 60)
+    expect(described_class.map_eligible?({ status: 'Open', opened_at: recent }, now: now)).to be(true)
+    expect(described_class.map_eligible?({ status: 'In Progress', opened_at: recent }, now: now)).to be(true)
+    expect(described_class.map_eligible?({ status: 'Closed', opened_at: recent }, now: now)).to be(false)
+    expect(described_class.map_eligible?({ status: 'Open', opened_at: old }, now: now)).to be(false)
+    expect(described_class.map_eligible?({ status: 'Open', opened_at: recent, closed_at: now }, now: now)).to be(false)
+  end
+
+  it 'uses red only for a missed update, without changing status' do
+    row = { status: 'In Progress', opened_at: now - (20 * 86_400), updated_at: now - (15 * 86_400) }
+    expect(described_class.map_signal(row, now: now)).to eq('no_recent_update')
+    expect(described_class.map_eligible?(row, now: now)).to be(true)
+  end
 end

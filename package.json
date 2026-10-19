@@ -3,7 +3,7 @@
   "private": true,
   "description": "Audit manifest for the CDN scripts in www/views/layout.erb; no frontend build required.",
   "scripts": {
-    "test": "node www/spec/js/water_charts_test.cjs && node www/spec/js/map_compatibility_test.cjs && node bin/check-browser-dependencies.cjs"
+    "test": "node www/spec/js/subway_test.cjs && node www/spec/js/water_charts_test.cjs && node www/spec/js/map_compatibility_test.cjs && node bin/check-browser-dependencies.cjs"
   },
   "dependencies": {
     "@protomaps/basemaps": "5.7.2",
