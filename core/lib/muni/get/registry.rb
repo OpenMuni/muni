@@ -194,6 +194,7 @@ module Muni
             cambridge: P.new(key: :cambridge, source_slug: 'cambridge/meetings', record_slug: 'meetings')
           }
         )
+
       ].freeze
 
       # Single manifest for web panes — beats and DOMAINS must cover every source_slug here.
@@ -248,6 +249,7 @@ module Muni
         { slug: :events, section: 'Events', title: 'Events', icon: 'calendar', default_widget: :list,
           source_slugs: %w[cambridge/city_calendar cambridge/tourism_events],
           empty_message: 'No official city events in this window.' }
+
       ].freeze
 
       class << self

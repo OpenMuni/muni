@@ -3,7 +3,7 @@
 # Other roles remain available for explicit maintenance and rollback commands.
 set -euo pipefail
 
-role="${1:-${FLY_PROCESS_GROUP:-web}}"
+role="${1:-web}"
 
 cd "$(dirname "$0")/.."
 

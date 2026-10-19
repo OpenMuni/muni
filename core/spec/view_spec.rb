@@ -169,7 +169,7 @@ RSpec.describe Muni::View do
     filters = described_class.filter_definitions(source('cambridge/service_requests'), :service_requests)
 
     expect(filters.first).to include(name: 'time_range', label: 'Time', default: 'active',
-                                     values: %w[active latest 1d 2d 7d 14d 30d 90d], source_anchored: true)
+                                     values: %w[active latest 1d 2d 7d 14d 30d 90d all], source_anchored: true)
     expect(described_class.latest_window_seconds(:service_requests)).to eq(7 * 24 * 60 * 60)
   end
 

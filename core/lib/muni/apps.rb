@@ -9,6 +9,8 @@ module Muni
       [
         app('map', 'Map', 'map', 'City records on a live civic map.',
             href: "/?hall=#{hall}", count: sum_rows(categories), surface: 'primary'),
+        app('train', 'Train', 'train', 'MBTA subway trains, station arrivals, and alerts.',
+            href: '/mobility/subway', surface: 'primary'),
         app('digest', 'Digest', 'newspaper', 'Latest city digest and trend cards.',
             href: "/digest?hall=#{hall}", count: Array(digest['cards']).length, surface: 'primary'),
         app('reminders', 'Reminders', 'bell', 'Practical city reminders and report follow-ups.',

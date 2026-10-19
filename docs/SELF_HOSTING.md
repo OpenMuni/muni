@@ -19,7 +19,10 @@ backups, and any generated tiles. Run one writer against that volume;
 the scheduler and web process share the store. Arrange external backups and a
 restore drill. Configure your own domain, TLS, monitoring, secrets, and map
 provider, and verify the attribution and terms of every source you enable.
-The included `Dockerfile` and `bin/start` show the process layout. Bring your own deployment configuration, app name, domain, storage, and credentials.
+The hosted Muni.fyi service uses AWS. The included `Dockerfile` and `bin/start`
+show the process layout; [AWS hosting](AWS_HOSTING.md) describes the public
+architecture. Bring your own deployment configuration, app name, domain,
+storage, and credentials.
 
 Connected sign-in, resident report submission, and the operator view are not
 part of this source release. Restore them only after an independent identity

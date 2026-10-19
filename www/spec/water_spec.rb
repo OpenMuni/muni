@@ -38,11 +38,12 @@ RSpec.describe 'Charles River region and Water Quality API' do
     expect(last_response.body).to include('>Datasets</h1>', 'Check schedule', 'Records retained')
   end
 
-  it 'keeps the top-right river link in both cities without replacing municipal navigation' do
+  it 'keeps river access in the municipality selector without a top-right link' do
     %w[cambridge boston].each do |hall|
       get "/?hall=#{hall}"
       expect(last_response.status).to eq(200)
-      expect(last_response.body).to include('href="/water/charles">Charles River ↗</a>')
+      expect(last_response.body).to include('<option value="charles">Charles River</option>')
+      expect(last_response.body).not_to include('href="/water/charles">Charles River ↗</a>')
       expect(last_response.body).not_to include('aria-label="Water Quality"')
     end
     get '/?hall=cambridge'
