@@ -10,6 +10,13 @@ assert.equal(fresh('invalid', now), false);
 
 global.localStorage = {getItem:()=>'place-harsq', setItem:()=>{}};
 const app = muniSubway();
+assert.equal(app.view, 'arrivals', 'station arrivals is the default view');
+app.selectedStation = 'place-harsq';
+app.selectView('alerts');
+assert.equal(app.view, 'alerts');
+assert.equal(app.listOpen, true, 'alerts open the mobile sidebar');
+app.selectView('arrivals');
+assert.equal(app.selectedStation, 'place-harsq', 'view switching preserves station selection');
 app.vehicles = [
   {id:'red', route:'Red', updated_at:stamp(-1000)},
   {id:'blue', route:'Blue', updated_at:stamp(-1000)},
@@ -33,9 +40,11 @@ async function testArrivals() {
   assert.deepEqual(app.predictions.map(p => p.id), ['first', 'later']);
   assert.deepEqual(paths, ['/predictions/place-harsq']);
 
+  app.selectView('alerts');
   app.listOpen = false;
   app.selectStation();
   assert.equal(app.listOpen, true, 'station selection opens arrivals on mobile');
+  assert.equal(app.view, 'arrivals', 'selecting a map station returns from alerts to arrivals');
   app.selectedStation = '';
   await app.loadPredictions();
   assert.deepEqual(app.predictions, [], 'clearing station clears arrivals');

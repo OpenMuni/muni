@@ -8,10 +8,11 @@
   <main class="shell__body subway-body">
     <nav class="rail native-sidebar" aria-label="Apps"><div class="rail__primary">
       <a class="rail__btn rail__btn--link" href="/?hall=<%= @hall.slug %>" title="Map" aria-label="Map"><span class="rail__icon" data-icon="map"></span><span class="rail__label">Map</span></a>
-      <a class="rail__btn rail__btn--link is-active" href="/mobility/subway?hall=<%= @hall.slug %>" title="Train" aria-label="Train" aria-current="page"><span class="rail__icon" data-icon="train"></span><span class="rail__label">Train</span></a>
+      <a class="rail__btn rail__btn--link" :class="{'is-active': view === 'arrivals'}" @click.prevent="selectView('arrivals')" href="/mobility/subway?hall=<%= @hall.slug %>" title="Train" aria-label="Train" :aria-current="view === 'arrivals' ? 'page' : null"><span class="rail__icon" data-icon="train"></span><span class="rail__label">Train</span></a>
+      <button type="button" class="rail__btn" :class="{'is-active': view === 'alerts'}" @click="selectView('alerts')" title="Service alerts" aria-label="Service alerts" :aria-pressed="view === 'alerts'"><span class="rail__icon" data-icon="caution"></span><span class="rail__label">Service alerts</span></button>
     </div></nav>
-    <aside id="subway-sidebar" class="list-pane native-pane subway-side" :class="{'is-open': listOpen}" aria-label="Arrivals and service alerts">
-      <section class="subway-board" aria-labelledby="subway-arrivals-title">
+    <aside id="subway-sidebar" class="list-pane native-pane subway-side" :class="{'is-open': listOpen}" :aria-label="view === 'arrivals' ? 'Station arrivals' : 'Service alerts'">
+      <section class="subway-board" x-show="view === 'arrivals'" aria-labelledby="subway-arrivals-title">
         <header class="list-pane__head"><h2 id="subway-arrivals-title">Station arrivals</h2></header>
         <div class="subway-station-picker">
           <label>Station <select x-model="selectedStation" @change="selectStation()"><option value="">Choose a station</option><template x-for="station in stations" :key="station.id"><option :value="station.id" x-text="station.name"></option></template></select></label>
@@ -23,7 +24,7 @@
         <p class="subway-empty" x-show="!selectedStation">Choose a station from the map or list to see arrivals.</p>
         <p class="subway-empty" x-show="selectedStation && !predictionsError && !predictions.length">No arrival predictions available.</p>
       </section>
-      <section class="subway-alerts" aria-labelledby="subway-alerts-title">
+      <section class="subway-alerts" x-show="view === 'alerts'" x-cloak aria-labelledby="subway-alerts-title">
         <header class="list-pane__head"><h2 id="subway-alerts-title">Service alerts</h2></header>
         <p class="subway-state" role="status" x-show="alertsError" x-text="alertsError"></p>
         <p class="subway-timestamp" x-show="alertsFetchedAt" x-text="'Alerts fetched ' + stamp(alertsFetchedAt)"></p>
@@ -38,6 +39,6 @@
         <p class="subway-timestamp" x-show="vehiclesFetchedAt" x-text="visibleVehicles().length + ' recent vehicles · Updated ' + stamp(vehiclesFetchedAt)"></p>
       </div>
     </section>
-    <button type="button" class="mobile-list-toggle ui-button" @click="listOpen = !listOpen" :aria-expanded="listOpen" aria-controls="subway-sidebar" x-text="listOpen ? 'Show map' : 'Arrivals & alerts'"></button>
+    <button type="button" class="mobile-list-toggle ui-button" @click="listOpen = !listOpen" :aria-expanded="listOpen" aria-controls="subway-sidebar" x-text="listOpen ? 'Show map' : (view === 'arrivals' ? 'Station arrivals' : 'Service alerts')"></button>
   </main>
 </div>
