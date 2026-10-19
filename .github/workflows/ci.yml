@@ -26,6 +26,9 @@ jobs:
       - name: Setup from a clean checkout
         run: ./setup
 
+      - name: AWS host operations regression
+        run: python3 -m unittest discover -s infra/aws -p 'test_*.py'
+
       - name: RSpec
         run: bin/test-all
 

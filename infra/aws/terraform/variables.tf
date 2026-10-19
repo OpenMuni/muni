@@ -45,3 +45,33 @@ variable "alert_email" {
   description = "Email address to confirm the CloudWatch alarm subscription."
   type        = string
 }
+
+variable "disk_used_percent_threshold" {
+  description = "Alert before /data fills; reserve room for a full detached SQLite backup."
+  type        = number
+  default     = 80
+  validation {
+    condition     = var.disk_used_percent_threshold > 0 && var.disk_used_percent_threshold < 100
+    error_message = "Disk threshold must be between 0 and 100, exclusive."
+  }
+}
+
+variable "backup_max_age_seconds" {
+  description = "Maximum successful offsite backup age; align with the systemd backup schedule."
+  type        = number
+  default     = 93600
+  validation {
+    condition     = var.backup_max_age_seconds > 0
+    error_message = "Backup maximum age must be positive."
+  }
+}
+
+variable "operations_period_seconds" {
+  description = "CloudWatch period; at least the monitor timer interval (default five minutes)."
+  type        = number
+  default     = 300
+  validation {
+    condition     = var.operations_period_seconds >= 60 && var.operations_period_seconds % 60 == 0
+    error_message = "Operations period must be a positive multiple of 60 seconds."
+  }
+}

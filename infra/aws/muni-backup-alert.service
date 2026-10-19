@@ -1,0 +1,10 @@
+[Unit]
+Description=Report failed offsite backup
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/muni/runtime.conf
+UMask=0077
+ExecStart=/opt/muni/backup-alert.sh
+TimeoutStartSec=2min

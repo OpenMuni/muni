@@ -1,0 +1,10 @@
+[Unit]
+Description=Publish Muni operational health
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/muni/runtime.conf
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/muni/monitor.py
+TimeoutStartSec=2min

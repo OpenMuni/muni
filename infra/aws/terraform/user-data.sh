@@ -2,7 +2,7 @@
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y docker.io awscli sqlite3
+apt-get install -y docker.io awscli sqlite3 python3 curl util-linux e2fsprogs
 systemctl enable --now docker
 mkdir -p /etc/muni /opt/muni /data
 chmod 0700 /etc/muni

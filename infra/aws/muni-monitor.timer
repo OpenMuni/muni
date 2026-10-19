@@ -1,0 +1,10 @@
+[Unit]
+Description=Schedule Muni monitor
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=muni-monitor.service
+
+[Install]
+WantedBy=timers.target
