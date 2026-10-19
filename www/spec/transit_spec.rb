@@ -30,6 +30,17 @@ RSpec.describe Muni::Www::App do
     expect(last_response).to be_ok
   end
 
+  it 'uses a left arrivals sidebar and an unobstructed map without route or notification controls' do
+    get '/mobility/subway'
+    body = last_response.body
+    expect(body).to include('id="subway-sidebar"', 'Station arrivals', 'Service alerts', 'id="subway-map"')
+    expect(body.index('id="subway-sidebar"')).to be < body.index('id="subway-map"')
+    expect(body).not_to include(
+      '<h1>MBTA Subway', 'Red, Orange, Blue, Green B/C/D/E, and Mattapan',
+      'x-model="route"', 'toggleChime', 'enableNotifications', 'filteredStations', 'visibleAlerts'
+    )
+  end
+
   it 'returns fetch times and distinct unavailable states' do
     allow(Muni::Transit).to receive(:stations).and_return('data' => [], 'fetched_at' => '2026-01-01T00:00:00Z')
     get '/api/mobility/subway/stations'
