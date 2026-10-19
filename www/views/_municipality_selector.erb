@@ -1,7 +1,6 @@
 <%
   water_region = @water_region == true
-  subway_region = @mobility_region == true
-  regional = water_region || subway_region
+  regional = water_region
 %>
 <div class="brand">
   <a class="brand__home" href="<%= regional ? '/' : "/?hall=#{@hall.slug}" %>" aria-label="OpenMuni home">
@@ -9,9 +8,9 @@
     <span class="brand__word">OpenMuni</span>
   </a>
   <form class="municipality-selector" method="get" action="/"
-        data-selected="<%= water_region ? 'Charles River' : (subway_region ? 'MBTA Subway' : Rack::Utils.escape_html(@hall.name)) %>">
+        data-selected="<%= water_region ? 'Charles River' : Rack::Utils.escape_html(@hall.name) %>">
     <select name="hall" aria-label="<%= regional ? 'Region' : 'Municipality' %>"
-            onchange="if (this.value === 'subway') { window.location.assign('/mobility/subway'); } else { this.form.requestSubmit(); }">
+            onchange="this.form.requestSubmit()">
       <% if water_region %>
         <option value="" selected disabled hidden>Charles River</option>
       <% end %>
@@ -20,7 +19,6 @@
           <%= Rack::Utils.escape_html(hall.name) %>
         </option>
       <% end %>
-      <option value="subway"<%= ' selected' if subway_region %>>MBTA Subway</option>
     </select>
   </form>
 </div>

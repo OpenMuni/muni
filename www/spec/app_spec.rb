@@ -98,7 +98,8 @@ RSpec.describe Muni::Www::App do
     get '/?hall=boston'
     expect(last_response).to be_ok
     expect(last_response.body).to include('Boston, MA')
-    expect(last_response.body).not_to include('title="Meetings"')
+    expect(last_response.body).not_to include('title="Meetings"', 'value="subway"')
+    expect(last_response.body).to include('title="Train"', 'href="/mobility/subway?hall=boston"')
 
     header 'Host', 'boston.muni.fyi'
     get '/api/categories'
@@ -183,7 +184,8 @@ RSpec.describe Muni::Www::App do
   it 'uses Digest and Trends links in shell entry points' do
     get '/?hall=cambridge'
     expect(last_response.body).to include('/digest?hall=cambridge')
-    expect(last_response.body).to include('/trends?hall=cambridge')
+    expect(last_response.body).to include('/trends?hall=cambridge', '/mobility/subway?hall=cambridge')
+    expect(last_response.body).not_to include('value="subway"')
   end
 
   it 'keeps the app rail order stable across app pages' do

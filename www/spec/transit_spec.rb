@@ -16,15 +16,33 @@ RSpec.describe Muni::Www::App do
     get '/mobility/subway'
     expect(last_response).to be_ok
     expect(last_response.body).to include('MBTA Subway', '/js/subway.js')
-    expect(last_response.body).not_to include('/transit/assets/index.js')
+    expect(last_response.body).not_to include('/transit/assets/index.js', 'Charles River', '/water/charles')
   end
 
-  it 'offers city home pages in the regional selector' do
-    get '/mobility/subway'
-    expect(last_response.body).to include('action="/"', 'value="cambridge"', 'value="boston"')
+  it 'offers only city home pages in the subway selector and preserves the selected city' do
+    get '/mobility/subway?hall=boston'
+    expect(last_response.body).to include('action="/"', 'value="cambridge"', 'value="boston" selected',
+                                          'aria-label="Municipality"', 'href="/?hall=boston"')
+    expect(last_response.body).not_to include('value="subway"')
+    expect(last_response.headers['set-cookie'].to_s).to include('hall=boston')
     expect(last_response.body).to include('this.form.requestSubmit()')
     get '/?hall=boston'
     expect(last_response).to be_ok
+  end
+
+  it 'uses a left arrivals sidebar and an unobstructed map without route or notification controls' do
+    get '/mobility/subway'
+    body = last_response.body
+    expect(body).to include('id="subway-sidebar"', 'Station arrivals', 'Service alerts', 'id="subway-map"')
+    expect(body).to include(
+      'data-icon="caution"', "selectView('alerts')", "selectView('arrivals')",
+      "x-show=\"view === 'arrivals'\"", "x-show=\"view === 'alerts'\""
+    )
+    expect(body.index('id="subway-sidebar"')).to be < body.index('id="subway-map"')
+    expect(body).not_to include(
+      '<h1>MBTA Subway', 'Red, Orange, Blue, Green B/C/D/E, and Mattapan',
+      'x-model="route"', 'toggleChime', 'enableNotifications', 'filteredStations', 'visibleAlerts'
+    )
   end
 
   it 'returns fetch times and distinct unavailable states' do
