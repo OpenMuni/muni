@@ -925,7 +925,7 @@ RSpec.describe Muni::Www::App do
     get '/api/category/service_requests/facets?hall=cambridge'
 
     time = JSON.parse(last_response.body).find { |facet| facet['name'] == 'time_range' }
-    expect(time).to include('default' => 'active', 'values' => %w[active latest 1d 2d 7d 14d 30d 90d])
+    expect(time).to include('default' => 'active', 'values' => %w[active latest 1d 2d 7d 14d 30d 90d all])
   end
 
   it 'defaults 311 category records and map points to active lifecycle visibility' do
@@ -944,29 +944,50 @@ RSpec.describe Muni::Www::App do
     expect_stale_lifecycle_payload(rows, now: now)
 
     default_map_ids = feature_ids('/api/category/service_requests/geo?hall=cambridge&time_range=active&limit=20')
-    expect(default_map_ids).to include('sr/open-old', 'sr/closed-recent', 'sr/stale')
-    expect(default_map_ids).not_to include('sr/closed-old')
+    expect(default_map_ids).to include('sr/stale', 'sr/open-recent')
+    expect(default_map_ids).not_to include('sr/open-old', 'sr/closed-recent', 'sr/closed-old')
 
     latest_ids = feature_ids('/api/category/service_requests/geo?hall=cambridge&time_range=latest&limit=20')
-    expect(latest_ids).to include('sr/open-recent')
-    expect(latest_ids).not_to include('sr/open-old', 'sr/stale', 'sr/closed-recent', 'sr/closed-old')
+    expect(latest_ids).to include('sr/open-recent', 'sr/stale')
+    expect(latest_ids).not_to include('sr/open-old', 'sr/closed-recent', 'sr/closed-old')
 
     thirty_day_ids = record_ids('/api/category/service_requests/records?hall=cambridge&time_range=30d&limit=10')
     expect(thirty_day_ids).to include('sr/open-old', 'sr/closed-recent', 'sr/stale')
   end
 
-  it 'scans beyond newer closed 311 rows for old open active map points' do
+  it 'scopes the 311 list to the map while keeping older and closed reports in history' do
+    Muni::Store.db[:service_requests].delete
+    now = Time.now.utc
+    seed_lifecycle_service_requests(now: now, location: [-71.11, 42.37])
+    upsert_service_request('sr/open-recent', opened_at: now - 60, location: [-71.11, 42.37])
+
+    get '/api/category/service_requests/records?hall=cambridge&map_view=1&bbox=-71.2,42.3,-71.0,42.5'
+    ids = JSON.parse(last_response.body).map { |row| row['external_id'] }
+    expect(ids).to contain_exactly('sr/stale', 'sr/open-recent')
+
+    get '/api/category/service_requests/records?hall=cambridge&history_view=1&limit=20'
+    expect(JSON.parse(last_response.body).map { |row| row['external_id'] }).to include('sr/closed-old', 'sr/open-old')
+
+    first = record_ids('/api/category/service_requests/records?hall=cambridge&history_view=1&time_range=all&limit=2')
+    second_url = '/api/category/service_requests/records?hall=cambridge&history_view=1&time_range=all&limit=2&offset=2'
+    second = record_ids(second_url)
+    expect(first.length).to eq(2)
+    expect(second.length).to eq(2)
+    expect(first & second).to be_empty
+  end
+
+  it 'does not let newer closed rows hide eligible map points' do
     Muni::Store.db[:service_requests].delete
     now = Time.now.utc
     location = [-71.11, 42.37]
-    upsert_service_request('sr/very-old-open', status: 'Open', location: location,
-                                               opened_at: now - (365 * 24 * 60 * 60 * 5),
-                                               updated_at: now - (30 * 24 * 60 * 60),
+    upsert_service_request('sr/recent-open', status: 'Open', location: location,
+                                               opened_at: now - (24 * 60 * 60),
+                                               updated_at: now - (24 * 60 * 60),
                                                collected_at: now)
     seed_newer_closed_service_requests(count: 5_001, now: now, location: location)
 
-    ids = feature_ids('/api/category/service_requests/geo?hall=cambridge&time_range=active&limit=10')
-    expect(ids).to eq(['sr/very-old-open'])
+    ids = feature_ids('/api/category/service_requests/geo?hall=cambridge&time_range=active')
+    expect(ids).to eq(['sr/recent-open'])
   end
 
   it 'filters 311 category records and map points by requested source timestamp field' do
@@ -989,7 +1010,7 @@ RSpec.describe Muni::Www::App do
     expect(ids).to eq(['sr/closed-recent'])
 
     geo_path = '/api/category/service_requests/geo?hall=cambridge&time_range=2d&time_field=closed_at&limit=10'
-    expect(feature_ids(geo_path)).to eq(['sr/closed-recent'])
+    expect(feature_ids(geo_path)).to be_empty
   end
 
   it 'exposes source-anchored sparse permit time facets' do

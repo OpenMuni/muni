@@ -14,6 +14,9 @@ module Muni
     PENDING_STATUSES = ['pending', 'needs reallocation', 'apply'].freeze
     CLOSED_VISIBLE_SECONDS = 3 * 24 * 60 * 60
     STALE_ACK_SECONDS = 14 * 24 * 60 * 60
+    MAP_WINDOW_SECONDS = 30 * 24 * 60 * 60
+    ACTIVE_STATUSES = (OPEN_STATUSES + ACKNOWLEDGED_STATUSES + PENDING_STATUSES +
+      %w[active create submit reopened]).freeze
 
     class << self
       def enrich(attrs, now: Time.now.utc)
@@ -33,6 +36,27 @@ module Muni
 
       def visible?(record, now: Time.now.utc)
         map_visible?(symbolized(record.respond_to?(:to_h) ? record.to_h : record), now: now)
+      end
+
+      def map_eligible?(attrs, now: Time.now.utc)
+        data = symbolized(attrs.respond_to?(:to_h) ? attrs.to_h : attrs)
+        reported = data[:opened_at]
+        reported.is_a?(Time) && reported.between?(now - MAP_WINDOW_SECONDS, now) &&
+          !closed_record?(data) && ACTIVE_STATUSES.include?(normalize_status(data[:status]))
+      end
+
+      def map_signal(attrs, now: Time.now.utc)
+        data = symbolized(attrs.respond_to?(:to_h) ? attrs.to_h : attrs)
+        return nil unless map_eligible?(data, now: now)
+
+        touched = last_touched_at(data)
+        return 'no_recent_update' if touched && touched <= now - STALE_ACK_SECONDS
+
+        normalized = normalize_status(data[:status])
+        return 'acknowledged' if acknowledged_status?(normalized)
+        return 'open' if OPEN_STATUSES.include?(normalized) || %w[create submit reopened].include?(normalized)
+
+        'other_active'
       end
 
       def display_status(attrs, last_touched: nil, now: Time.now.utc)

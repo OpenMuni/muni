@@ -40,7 +40,7 @@ module Muni
       'events'           => 'upcoming'
     }.freeze
     CATEGORY_TIME_VALUES = {
-      'service_requests' => [ACTIVE_RANGE, LATEST_RANGE, *TIME_RANGES.keys],
+      'service_requests' => [ACTIVE_RANGE, LATEST_RANGE, *TIME_RANGES.keys, 'all'],
       'safety'           => [LATEST_RANGE, *TIME_RANGES.keys],
       'crime_reports'    => [LATEST_RANGE, *TIME_RANGES.keys],
       'dispatch_calls'   => [LATEST_RANGE, *TIME_RANGES.keys],

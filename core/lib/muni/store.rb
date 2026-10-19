@@ -151,6 +151,9 @@ module Muni
 
       def ensure_service_request_indexes!(table, schema)
         cols = schema.column_names
+        if cols.include?(:hall) && cols.include?(:opened_at) && cols.include?(:status)
+          add_record_index(table, %i[hall opened_at status])
+        end
         add_record_index(table, %i[hall updated_at]) if cols.include?(:hall) && cols.include?(:updated_at)
         add_record_index(table, %i[hall closed_at]) if cols.include?(:hall) && cols.include?(:closed_at)
         add_record_index(table, %i[hall status]) if cols.include?(:hall) && cols.include?(:status)
