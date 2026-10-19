@@ -2,7 +2,7 @@
 Description=Schedule Muni backup
 
 [Timer]
-OnCalendar=*-*-* 06:00:00 UTC
+OnCalendar=*-*-* 06:30:00 UTC
 Persistent=true
 Unit=muni-backup.service
 

@@ -106,25 +106,37 @@ systemd restarts an exited app process. The ALB checks `/healthz` independently.
 
 ## Backups, schedules and alerts
 
-`backup.py` takes a consistent online SQLite snapshot (including committed WAL
-changes), runs `PRAGMA integrity_check` on the detached copy with bounded cache,
-streams a SHA-256 checksum, and uploads both to `db/` with SSE-S3. Optional public
-map tiles are synced without remote deletions. No private account/media overlay
-is assumed. A local lock prevents concurrent backup jobs. Only a successful
-database, checksum and asset upload advances `last-success`; failures retain
-previous backups and trigger a scoped SNS notification. The success marker is
-local evidence of successful uploads, not an independent S3 restore verification.
+`backup.py` is the authoritative S3 backup worker. It takes a consistent online
+SQLite snapshot (including committed WAL changes), checks the detached copy's
+integrity, uploads it and its SHA-256 sidecar with encryption, and verifies remote
+size and checksum. Multipart/composite checksums use a streamed download-and-hash
+fallback without making a second local copy. Existing `tiles/` and `report_media/`
+directories are synced without remote deletions. A successful upload is not a
+restore drill; test restoration separately.
 
-Successful jobs prune detached local backups older than
-`BACKUP_LOCAL_RETENTION_DAYS` (default 2). S3 retains database objects for 60 days
-and older versions for 7 days. Tile versions are not subject to that `db/` rule;
-review their retention separately. Reserve space for at least one full new
-snapshot in addition to retained copies; integrity checks and uploads can consume
-substantial time and I/O on large datasets. Interrupted pending directories may
-need manual review after a forced stop or power loss.
+An exclusive lock prevents concurrent backups. Capture requires space for
+the database plus the greater of 2 GiB or 10% of the data filesystem. Failures retain
+previous copies and trigger the existing service failure alert. Owned interrupted
+staging directories are cleaned under the lock; unrecognized files are preserved.
+`BACKUP_LOCAL_KEEP` defaults to 2 completed snapshots, independent of how many runs
+occur per day. Only snapshots with verified receipts enter automated retention.
+Legacy snapshots require explicit verification/adoption or an inventoried cleanup.
+S3 keeps database snapshots for 60 days. Preserve installation-specific
+asset-version policies.
+
+`MUNI_BACKUP_MODE` defaults to `local`, preserving existing app behavior. AWS uses
+`external`, with `MUNI_BACKUP_STATUS_PATH=/data/backups/offsite/status.json`.
+`disabled` turns off automatic app snapshots independently of optimization.
+Keep `MUNI_MAINTENANCE_ENABLED=1` for weekly optimization in external mode. External
+status reads a private atomic evidence file, never S3 or a local fallback success.
+The public response adds `backend`, `verification`, `time_basis`, and external
+retention fields without exposing private paths or object keys. The monitor uses
+capture time, not upload completion; malformed evidence fails closed. The old
+`last-success` file remains only for rollback compatibility. `MUNI_HEALTH_URL`
+allows the monitor to use the installation's actual local health port.
 
 All schedules are configurable through systemd overrides. The defaults are a
-daily backup at 06:00 UTC, a local health probe every minute, and metrics every
+daily backup at 06:30 UTC, a local health probe every minute, and metrics every
 five minutes. For example, `sudo systemctl edit muni-backup.timer` can contain:
 
 ```ini
@@ -164,3 +176,25 @@ terraform -chdir=infra/aws/terraform validate
 
 Tests use synthetic SQLite files and mocked AWS/disk operations. They do not
 format disks, provision AWS resources or establish live restore readiness.
+
+## Existing-installation rollout and rollback
+
+Do not apply this example Terraform stack to an existing deployment or reinstall
+all its units. Save private copies of the installed backup/monitor scripts, unit
+files, runtime/app configuration, active image ID and preceding release. Keep
+these until the next scheduled run succeeds. Never commit those private files.
+
+1. Install `backup.py` and `backup_state.py`; target only the backup service
+   command, timeout and `BACKUP_LOCAL_KEEP=2`. Preserve its 06:30 UTC schedule and
+   failure notifications. Keep the app's local backup mode during this stage.
+2. Run the worker manually, then download its S3 snapshot and checksum into an
+   isolated directory. Validate SHA-256, SQLite integrity and representative reads.
+   Start an isolated copy of the app with collectors and maintenance disabled and
+   no production secrets or writable production mounts. Check health, then remove
+   only that rehearsal container and its temporary data.
+3. Install the compatible application image, set external mode and the status
+   path, and leave maintenance enabled. Install the compatible monitor and helper;
+   preserve its actual health URL, log group and existing metric/alarm namespace.
+4. Confirm app health, external status, metrics and the next scheduled run. On
+   failure restore the captured scripts/configuration/image and local backup mode.
+   A deployment rollback must never overwrite the live database.

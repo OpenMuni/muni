@@ -8,10 +8,12 @@ import subprocess
 import time
 from urllib.request import urlopen
 
+from backup_state import capture_age, read_state
+
 
 def health():
     try:
-        with urlopen("http://127.0.0.1:8080/healthz", timeout=10) as response:
+        with urlopen(os.environ.get("MUNI_HEALTH_URL", "http://127.0.0.1:8080/healthz"), timeout=10) as response:
             return int(response.status == 200 and json.load(response).get("ok") is True)
     except (OSError, ValueError):
         return 0
@@ -20,8 +22,8 @@ def health():
 def metrics(data):
     mounted = os.path.ismount(data)
     disk = shutil.disk_usage(data)
-    marker = data / "backups" / "offsite" / "last-success"
-    age = max(0, time.time() - marker.stat().st_mtime) if mounted and marker.is_file() else 1e12
+    state = read_state(data / "backups" / "offsite" / "status.json") if mounted else {}
+    age = capture_age(state, time.time())
     return {"kind": "muni_operations", "disk_used_percent": round(100 * disk.used / disk.total, 2),
             "backup_age_seconds": round(age), "data_mounted": int(mounted), "app_healthy": health()}
 
