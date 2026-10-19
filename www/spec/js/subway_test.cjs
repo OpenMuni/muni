@@ -1,38 +1,47 @@
 const assert = require('node:assert/strict');
-const {fresh, duePredictions, muniSubway} = require('../../public/js/subway.js');
+const {fresh, muniSubway} = require('../../public/js/subway.js');
 
 const now = Date.now();
 const stamp = offset => new Date(now + offset).toISOString();
-const prediction = {id:'prediction-1', route:'Red', arrival_time:stamp(120000), updated_at:stamp(-1000)};
-
 assert.equal(fresh(stamp(-1000), now), true);
 assert.equal(fresh(stamp(-60000), now), false);
-assert.equal(duePredictions([prediction], stamp(-1000), now, new Set()).length, 1);
-assert.equal(duePredictions([prediction], stamp(-60000), now, new Set()).length, 0);
-assert.equal(duePredictions([{...prediction, updated_at:stamp(-60000)}], stamp(-1000), now, new Set()).length, 0);
-assert.equal(duePredictions([prediction], stamp(-1000), now, new Set(['prediction-1'])).length, 0);
-assert.equal(duePredictions([{...prediction, updated_at:undefined}], stamp(-1000), now, new Set()).length, 1);
+assert.equal(fresh(stamp(60000), now), false);
+assert.equal(fresh('invalid', now), false);
 
 global.localStorage = {getItem:()=>'place-harsq', setItem:()=>{}};
-let notifications = 0;
-global.Notification = class {static permission = 'granted'; constructor() { notifications += 1; }};
 const app = muniSubway();
-app.selectedStation = 'place-harsq';
-app.stations = [{id:'place-harsq', name:'Harvard'}];
-app.predictions = [prediction];
-app.predictionsFetchedAt = stamp(-1000);
-app.notifyArrivals();
-assert.equal(notifications, 0, 'notifications start disabled');
-app.notificationsEnabled = true;
-app.notifyArrivals();
-app.notifyArrivals();
-assert.equal(notifications, 1, 'one notification per real prediction');
-app.predictions = [{...prediction, id:'prediction-2', updated_at:stamp(-60000)}];
-app.notifyArrivals();
-assert.equal(notifications, 1, 'stale prediction is suppressed');
-app.predictionsFetchedAt = stamp(-60000);
-app.predictions = [{...prediction, id:'prediction-3'}];
-app.notifyArrivals();
-assert.equal(notifications, 1, 'stale response is suppressed');
+app.vehicles = [
+  {id:'red', route:'Red', updated_at:stamp(-1000)},
+  {id:'blue', route:'Blue', updated_at:stamp(-1000)},
+  {id:'stale', route:'Orange', updated_at:stamp(-60000)}
+];
+assert.deepEqual(app.visibleVehicles().map(v => v.id), ['red', 'blue'], 'show fresh vehicles across all routes');
 
-console.log('Subway freshness and notification tests passed.');
+async function testArrivals() {
+  const paths = [];
+  app.selectedStation = 'place-harsq';
+  app.get = async path => {
+    paths.push(path);
+    return {fetched_at:stamp(-1000), data:[
+      {id:'later', route:'Red', arrival_time:stamp(120000)},
+      {id:'first', route:'Red', arrival_time:stamp(60000)},
+      {id:'cancelled', arrival_time:stamp(1000), schedule_relationship:'CANCELLED'},
+      {id:'old', arrival_time:stamp(-120000)}
+    ]};
+  };
+  await app.loadPredictions();
+  assert.deepEqual(app.predictions.map(p => p.id), ['first', 'later']);
+  assert.deepEqual(paths, ['/predictions/place-harsq']);
+
+  app.listOpen = false;
+  app.selectStation();
+  assert.equal(app.listOpen, true, 'station selection opens arrivals on mobile');
+  app.selectedStation = '';
+  await app.loadPredictions();
+  assert.deepEqual(app.predictions, [], 'clearing station clears arrivals');
+}
+
+testArrivals().then(() => console.log('Subway freshness and arrival tests passed.')).catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
