@@ -146,6 +146,28 @@ module Muni
         rescue Muni::Data::NotFound => e
           halt 404, JSON.dump(error: e.message)
         end
+
+        get '/api/mobility/subway/stations' do
+          subway_response { Muni::Transit.stations }
+        end
+
+        get '/api/mobility/subway/vehicles' do
+          subway_response { Muni::Transit.vehicles }
+        end
+
+        get '/api/mobility/subway/predictions/:stop_id' do
+          subway_response { Muni::Transit.predictions(stop_id: params[:stop_id]) }
+        end
+
+        get '/api/mobility/subway/alerts' do
+          subway_response { Muni::Transit.alerts }
+        end
+
+        def subway_response
+          JSON.dump(yield)
+        rescue Muni::Transit::Client::Error => e
+          halt e.status, JSON.dump(error: e.message, data: [], fetched_at: nil)
+        end
       end
     end
   end

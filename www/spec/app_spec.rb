@@ -8,7 +8,7 @@ RSpec.describe Muni::Www::App do
   before { Muni::Store.ensure_tables! }
 
   def rail_app_titles(body)
-    body.scan(/title="(Digest|Trends|Meetings)"/).flatten.first(4)
+    body.scan(/title="(Digest|Trends|Meetings|Train)"/).flatten.first(4)
   end
 
   def upsert_stale_service_request(now)
@@ -187,7 +187,7 @@ RSpec.describe Muni::Www::App do
   end
 
   it 'keeps the app rail order stable across app pages' do
-    expected = %w[Trends Digest Meetings]
+    expected = %w[Trends Digest Meetings Train]
 
     ['/?hall=cambridge', '/digest?hall=cambridge',
      '/trends?hall=cambridge', '/meetings?hall=cambridge'].each do |path|

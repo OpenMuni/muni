@@ -36,4 +36,13 @@
   <span class="rail__icon" data-icon="landmark"></span>
   <span class="rail__label">Meetings</span>
 </a>
+<a
+  class="<%= app_classes.call('train', 'rail__btn--link') %>"
+  href="/mobility/subway"
+  title="Train"
+  aria-label="Train"
+  <%= 'aria-current="true"' if current_app_value == 'train' %>>
+  <span class="rail__icon" data-icon="train"></span>
+  <span class="rail__label">Train</span>
+</a>
 <% end %>
