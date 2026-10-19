@@ -21,6 +21,10 @@ module Muni
         string  :source_url
         time    :collected_at
         time    :last_seen_at
+        time    :source_revision_at
+        json    :lifecycle_evidence
+        string  :lifecycle_source_state
+        time    :lifecycle_checked_at
       end
     end
   end

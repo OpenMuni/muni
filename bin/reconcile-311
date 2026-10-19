@@ -1,0 +1,20 @@
+#!/usr/bin/env ruby
+require 'bundler/setup'
+require 'optparse'
+require 'muni'
+require 'muni/service_request_reconciliation'
+
+options = { apply: false, max_batches: 4, page_size: 200 }
+OptionParser.new do |parser|
+  parser.banner = 'Usage: bundle exec ruby bin/reconcile-311 HALL [--apply] [--batches N] [--page-size N]'
+  parser.on('--apply', 'Persist source-evidenced updates; default is dry run') { options[:apply] = true }
+  parser.on('--batches N', Integer) { |value| options[:max_batches] = value }
+  parser.on('--page-size N', Integer) { |value| options[:page_size] = value }
+end.parse!
+hall = ARGV.shift
+abort 'Hall must be boston or cambridge' unless %w[boston cambridge].include?(hall) && ARGV.empty?
+Muni.boot!
+Muni::Hall.load_all!
+# Schema preparation is a separate, rehearsed deployment step. Dry runs never migrate.
+source = Muni::Registry.source("#{hall}/service_requests").new
+puts JSON.pretty_generate(Muni::ServiceRequestReconciliation.new(source, **options).run)

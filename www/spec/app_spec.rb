@@ -54,7 +54,7 @@ RSpec.describe Muni::Www::App do
   it 'serves the HTML shell at /' do
     get '/'
     expect(last_response).to be_ok
-    expect(last_response.body).to include('Muni')
+    expect(last_response.body).to include('OpenMuni', '/icons/openmuni-logo.png')
     expect(last_response.body).not_to include('/auth/', '/ask?')
   end
 

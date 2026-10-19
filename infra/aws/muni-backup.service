@@ -1,0 +1,13 @@
+[Unit]
+Description=Verified SQLite backup to private S3
+BindsTo=data.mount
+Requires=data.mount
+After=data.mount network-online.target
+OnFailure=muni-backup-alert.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/muni/runtime.conf
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/muni/backup.py
+TimeoutStartSec=2h
