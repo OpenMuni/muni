@@ -724,6 +724,9 @@ a {
 .rail__icon[data-icon="hammer-wrench"], .rail__section-icon[data-icon="hammer-wrench"] { -webkit-mask-image: url('/icons/tools.svg'); mask-image: url('/icons/tools.svg'); }
 .rail__icon[data-icon="house"], .rail__section-icon[data-icon="house"] { -webkit-mask-image: url('/icons/house.svg'); mask-image: url('/icons/house.svg'); }
 .rail__icon[data-icon="route"], .rail__section-icon[data-icon="route"] { -webkit-mask-image: url('/icons/route.svg'); mask-image: url('/icons/route.svg'); }
+.rail__icon[data-icon="train"], .rail__section-icon[data-icon="train"] { -webkit-mask-image: url('/icons/train.svg'); mask-image: url('/icons/train.svg'); }
+.rail__icon[data-icon="train"] { -webkit-mask-size: auto 22px; mask-size: auto 22px; }
+.rail__section-icon[data-icon="train"] { -webkit-mask-size: auto 18px; mask-size: auto 18px; }
 .rail__icon[data-icon="parking"], .rail__section-icon[data-icon="parking"] { -webkit-mask-image: url('/icons/parking.svg'); mask-image: url('/icons/parking.svg'); }
 .rail__icon[data-icon="bike"], .rail__section-icon[data-icon="bike"] { -webkit-mask-image: url('/icons/bike.svg'); mask-image: url('/icons/bike.svg'); }
 .rail__icon[data-icon="walk"], .rail__section-icon[data-icon="walk"] { -webkit-mask-image: url('/icons/walk.svg'); mask-image: url('/icons/walk.svg'); }

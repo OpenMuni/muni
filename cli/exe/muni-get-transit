@@ -1,0 +1,38 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'muni'
+require 'optparse'
+require 'json'
+
+options = { station: nil, vehicles: false, alerts: false, json: false }
+OptionParser.new do |opts|
+  opts.banner = 'Usage: muni-get-transit [--station ID | --vehicles | --alerts] [--json]'
+  opts.on('-s', '--station ID', 'Canonical MBTA parent station ID') { |value| options[:station] = value }
+  opts.on('--vehicles', 'Show live subway vehicles') { options[:vehicles] = true }
+  opts.on('--alerts', 'Show current subway alerts') { options[:alerts] = true }
+  opts.on('--json', 'Output JSON') { options[:json] = true }
+end.parse!
+
+begin
+  result = if options[:station]
+             Muni::Transit.predictions(stop_id: options[:station])
+           elsif options[:vehicles]
+             Muni::Transit.vehicles
+           elsif options[:alerts]
+             Muni::Transit.alerts
+           else
+             Muni::Transit.stations
+           end
+  if options[:json]
+    puts JSON.pretty_generate(result)
+  else
+    puts "Fetched at #{result.fetch('fetched_at')}"
+    result.fetch('data').each do |item|
+      puts [item['id'], item['name'] || item['header'] || item['route'], item['arrival_time']].compact.join(' · ')
+    end
+  end
+rescue Muni::Transit::Client::Error => e
+  warn "MBTA data unavailable: #{e.message}"
+  exit 1
+end

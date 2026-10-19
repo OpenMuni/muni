@@ -31,7 +31,8 @@ RSpec.describe Muni::Apps do
       categories: [{ 'row_count' => 3 }]
     )
 
-    expect(apps.map { |app| app['id'] }).to eq(%w[map digest reminders calendar health])
+    expect(apps.map { |app| app['id'] }).to eq(%w[map train digest reminders calendar health])
+    expect(apps.find { |app| app['id'] == 'train' }['surface']).to eq('primary')
     expect(apps.find { |app| app['id'] == 'map' }['count']).to eq(3)
   end
 
