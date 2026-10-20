@@ -101,6 +101,16 @@ RSpec.describe 'Cognito account routes' do
     expect(Muni::Store.db[:accounts].count).to eq(2)
   end
 
+  it 'does not grant access through a bare account identifier, legacy cookie, or matching email' do
+    row = sign_in
+    clear_cookies
+    get 'https://muni.example/account', { user_id: row[:account_id], email: claims['email'] },
+        'HTTP_COOKIE' => "muni_session=legacy; __Host-muni_session=#{row[:account_id]}"
+    expect(last_response.status).to eq(302)
+    expect(last_response.location).to end_with('/login')
+    expect(provider).not_to have_received(:credentials)
+  end
+
   it 'rejects cross-account reauthentication before passkey enrollment' do
     row = sign_in
     submit '/account/passkeys'
