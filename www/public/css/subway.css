@@ -16,13 +16,28 @@
 .subway-home{margin:10px 0;border:0;padding:0;background:transparent;color:var(--color-accent);text-decoration:underline;cursor:pointer}
 .subway-map-panel{min-width:0;min-height:0}
 .subway-map-status{position:absolute;top:12px;left:12px;right:56px;max-width:max-content;border-radius:var(--radius-btn);pointer-events:none}
-.subway-marker{width:9px;height:9px;border-radius:50%;border:1px solid #fff;background:#35465a;box-shadow:0 0 0 2px #35465a;cursor:pointer}
-.subway-marker--vehicle{width:16px;height:16px;border:2px solid #fff;box-shadow:0 1px 5px #222}
-.subway-marker--selected{width:15px;height:15px}
+.subway-marker{display:grid;place-items:center;width:24px;height:24px;padding:0;border:0;border-radius:50%;background:transparent;cursor:pointer;overflow:visible}
+.subway-marker::before{content:'';width:10px;height:10px;box-sizing:border-box;border:2px solid #171717;border-radius:50%;background:#fff}
+.subway-marker--transfer::before{width:14px;height:14px}
+.subway-marker--selected::before{width:16px;height:16px;box-shadow:0 0 0 3px #fff,0 0 0 5px #171717}
+.subway-marker--selected,.subway-marker:hover,.subway-marker:focus-visible{z-index:3}
+.subway-marker__label{display:none;position:absolute;left:calc(100% + 5px);top:50%;transform:translateY(-50%);width:max-content;max-width:220px;padding:5px 8px;border:1px solid #d1d5db;border-radius:5px;background:#fff;color:#171717;font:600 12px/1.4 system-ui,sans-serif;box-shadow:0 2px 6px #0002;pointer-events:none;text-align:left}
+.subway-marker:hover .subway-marker__label,.subway-marker:focus-visible .subway-marker__label,.subway-marker--selected .subway-marker__label,.subway-train:hover .subway-marker__label,.subway-train:focus-visible .subway-marker__label{display:block}
+.subway-train{display:flex;align-items:center;justify-content:center;width:20px;height:22px;padding:2px;box-sizing:border-box;border:1px solid #fff;border-radius:4px;background:var(--train-color);color:#fff;box-shadow:0 0 0 1px #171717,0 1px 3px #0003;z-index:2}
+.subway-train svg{width:14px;height:16px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.subway-train:hover,.subway-train:focus-visible{z-index:4}
+.subway-marker:focus-visible,.subway-train:focus-visible{outline:3px solid #171717;outline-offset:3px}
+.subway-map-legend{position:absolute;bottom:32px;left:12px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;max-width:calc(100% - 24px);padding:9px 12px;border-radius:var(--radius-btn);font-size:12px;pointer-events:none}
+.subway-map-legend span{display:inline-flex;align-items:center;gap:5px}
+.subway-legend-line{width:18px;height:4px;border-radius:2px;background:var(--line-color)}
+.subway-legend-station{width:10px;height:10px;box-sizing:border-box;border:2px solid #171717;border-radius:50%;background:#fff}
+.subway-legend-train{width:16px;height:18px;background:currentColor;mask:url('/icons/train.svg') center/contain no-repeat}
+.subway-map-status{z-index:5}
 @media(max-width:639px){
 .subway-shell .subway-body{grid-template-columns:minmax(0,1fr);padding-bottom:var(--mobile-rail-h)}
 .subway-side{bottom:var(--mobile-rail-h)}
 .subway-side:not(.is-open){visibility:hidden}
 .subway-board,.subway-alerts{padding-bottom:68px}
 .subway-shell .mobile-list-toggle{bottom:calc(var(--mobile-rail-h) + 12px)}
+.subway-map-legend{bottom:70px;gap:6px 10px;padding:7px 9px}
 }

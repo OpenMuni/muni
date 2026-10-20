@@ -38,8 +38,16 @@
     <section class="body-pane native-map subway-map-panel" aria-label="Subway map">
       <div id="subway-map" class="body-pane__map subway-map" aria-label="Geographic map of MBTA subway stations and vehicles"></div>
       <div class="subway-map-status ui-material" aria-live="polite">
-        <p class="subway-state" role="status" x-show="stationsError || vehiclesError || mapError" x-text="stationsError || vehiclesError || mapError"></p>
-        <p class="subway-timestamp" x-show="vehiclesFetchedAt" x-text="visibleVehicles().length + ' recent vehicles · Updated ' + stamp(vehiclesFetchedAt)"></p>
+        <p class="subway-state" role="status" x-show="stationsError || vehiclesError || mapError || shapesError" x-text="stationsError || vehiclesError || mapError || shapesError"></p>
+        <p class="subway-timestamp" x-show="vehiclesFetchedAt" x-text="visibleVehicles().length + ' live trains · Refreshes every 15s · Updated ' + stamp(vehiclesFetchedAt)"></p>
+      </div>
+      <div class="subway-map-legend ui-material" aria-label="Map legend">
+        <span><i class="subway-legend-line" style="--line-color:#da291c" aria-hidden="true"></i>Red / Mattapan</span>
+        <span><i class="subway-legend-line" style="--line-color:#ed8b00" aria-hidden="true"></i>Orange</span>
+        <span><i class="subway-legend-line" style="--line-color:#003da5" aria-hidden="true"></i>Blue</span>
+        <span><i class="subway-legend-line" style="--line-color:#00843d" aria-hidden="true"></i>Green B C D E</span>
+        <span><i class="subway-legend-station" aria-hidden="true"></i>Station</span>
+        <span><i class="subway-legend-train" aria-hidden="true"></i>Live train</span>
       </div>
     </section>
     <button type="button" class="mobile-list-toggle ui-button" @click="listOpen = !listOpen" :aria-expanded="listOpen" aria-controls="subway-sidebar" x-text="listOpen ? 'Show map' : (view === 'arrivals' ? 'Station arrivals' : 'Service alerts')"></button>

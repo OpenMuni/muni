@@ -44,6 +44,16 @@ module Muni
           end
         end
 
+        def shapes
+          cached('shapes', 86_400) do
+            Transit::ROUTES.flat_map do |route|
+              pages('/shapes', 'filter[route]' => route).map do |shape|
+                { 'id' => shape['id'], 'route' => route, 'polyline' => shape.dig('attributes', 'polyline') }
+              end
+            end
+          end
+        end
+
         def vehicles
           cached('vehicles', 5) do
             pages('/vehicles', 'filter[route]' => Transit::ROUTES.join(','))

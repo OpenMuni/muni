@@ -5,6 +5,27 @@ require 'spec_helper'
 RSpec.describe Muni::Transit::Client do
   before { described_class.clear_cache! }
 
+  it 'preserves every branch shape with its route and caches the geometry separately from live data' do
+    red = [
+      { 'id' => 'ashmont', 'attributes' => { 'polyline' => 'ashmont-path' } },
+      { 'id' => 'braintree', 'attributes' => { 'polyline' => 'braintree-path' } }
+    ]
+    green = [{ 'id' => 'medford', 'attributes' => { 'polyline' => 'medford-path' } }]
+    allow(described_class).to receive(:pages).and_return([])
+    allow(described_class).to receive(:pages).with('/shapes', 'filter[route]' => 'Red').and_return(red)
+    allow(described_class).to receive(:pages).with('/shapes', 'filter[route]' => 'Green-E').and_return(green)
+    result = described_class.shapes
+    expect(result.fetch('data')).to eq([
+                                         { 'id' => 'ashmont', 'route' => 'Red', 'polyline' => 'ashmont-path' },
+                                         { 'id' => 'braintree', 'route' => 'Red', 'polyline' => 'braintree-path' },
+                                         { 'id' => 'medford', 'route' => 'Green-E', 'polyline' => 'medford-path' }
+                                       ])
+    expect(described_class.shapes).to eq(result)
+    expect(described_class).to have_received(:pages).with('/shapes', 'filter[route]' => 'Red').once
+    expect(described_class).to have_received(:pages).with('/shapes', 'filter[route]' => 'Green-E').once
+    expect(result['fetched_at']).not_to be_nil
+  end
+
   it 'uses canonical parent station IDs and deduplicates route membership' do
     stop = { 'id' => 'place-cntsq', 'attributes' => { 'name' => 'Central', 'location_type' => 1,
                                                     'latitude' => 42.36, 'longitude' => -71.1,
