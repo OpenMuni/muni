@@ -233,6 +233,19 @@ RSpec.describe 'Cognito account routes' do
     expect(last_response.status).to eq(404)
   end
 
+  it 'shows public account navigation without contacting Cognito and hides it during the pilot' do
+    allow(Muni::Www::Auth).to receive(:service).and_raise(Muni::Www::Auth::Unavailable)
+    allow(Muni::Www::Auth).to receive(:mode).and_return('public')
+    ['/?hall=cambridge', '/mobility/subway?hall=boston'].each do |path|
+      get path
+      expect(last_response.status).to eq(200)
+      expect(last_response.body).to include('href="/login"', 'href="/signup"', 'href="/account"')
+    end
+    allow(Muni::Www::Auth).to receive(:mode).and_return('pilot')
+    get '/'
+    expect(last_response.body).not_to include('href="/signup"')
+  end
+
   it 'does not create a local account when live verification fails' do
     allow(provider).to receive(:verify_user).and_raise(Muni::Www::Auth::Error)
     sign_in

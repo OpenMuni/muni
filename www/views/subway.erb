@@ -4,6 +4,9 @@
 <div class="shell native-app subway-shell" x-data="muniSubway()">
   <header class="topbar ui-material native-chrome">
     <%= erb :_municipality_selector, layout: false %>
+    <% if Muni::Www::Auth.mode == 'public' %>
+      <nav class="topbar__nav" aria-label="Site"><%= erb :_account_navigation, layout: false %></nav>
+    <% end %>
   </header>
   <main class="shell__body subway-body">
     <nav class="rail native-sidebar" aria-label="Apps"><div class="rail__primary">
