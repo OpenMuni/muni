@@ -90,12 +90,13 @@ module Muni
         end
 
         post '/account/delete' do
-          csrf!
-          recent!
+          row = Muni::Accounts.session(sid)
+          csrf!(row)
+          recent!(row: row)
           halt 422, 'Confirm account deletion.' unless params['confirm'] == 'delete'
 
-          id = account_session[:account_id]
-          tokens = account_session[:plaintext_tokens]
+          id = row[:account_id]
+          tokens = auth.vault.open(row[:tokens])
           Muni::Accounts.deletion_pending(id)
           @deletion_pending = true
           clear_session

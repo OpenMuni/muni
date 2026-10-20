@@ -217,12 +217,15 @@ RSpec.describe 'Cognito account routes' do
 
   it 'retains a disabled deletion record when the provider is unavailable' do
     row = sign_in
+    Muni::Store.db[:account_sessions].update(token_expires_at: Time.now.to_i - 1)
+    allow(provider).to receive(:refresh).and_raise(Muni::Www::Auth::Unavailable)
     allow(provider).to receive(:delete_user).and_raise(Muni::Www::Auth::Unavailable)
     submit '/account/delete', confirm: 'delete'
     expect(last_response.status).to eq(503)
     expect(Muni::Accounts.account(row[:account_id])).to include(status: 'deletion_pending', email: nil)
     expect(Muni::Store.db[:account_sessions].count).to eq(0)
     expect(Muni::Accounts.resolve(claims)).to be_nil
+    expect(provider).not_to have_received(:refresh)
   end
 
   it 'deletes account data while retaining only a non-reusable identity tombstone' do
