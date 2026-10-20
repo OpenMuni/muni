@@ -211,6 +211,10 @@ module Muni
           subway_response { Muni::Transit.vehicles }
         end
 
+        get '/api/mobility/subway/shapes' do
+          subway_response { Muni::Transit.shapes }
+        end
+
         get '/api/mobility/subway/predictions/:stop_id' do
           subway_response { Muni::Transit.predictions(stop_id: params[:stop_id]) }
         end

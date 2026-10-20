@@ -9,6 +9,7 @@ module Muni
 
     class << self
       def stations = Client.stations
+      def shapes = Client.shapes
       def vehicles = Client.vehicles
       def predictions(stop_id:) = Client.predictions(stop_id: stop_id)
       def alerts = Client.alerts

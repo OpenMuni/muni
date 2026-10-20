@@ -65,4 +65,17 @@ RSpec.describe Muni::Www::App do
     get '/api/mobility/subway/alerts'
     expect(JSON.parse(last_response.body)).to eq(payload)
   end
+
+  it 'serves route geometry and reports geometry outages independently' do
+    payload = { 'data'       => [{ 'id' => 'red-branch', 'route' => 'Red', 'polyline' => 'encoded' }],
+                'fetched_at' => '2026-01-01T00:00:00Z' }
+    allow(Muni::Transit).to receive(:shapes).and_return(payload)
+    get '/api/mobility/subway/shapes'
+    expect(JSON.parse(last_response.body)).to eq(payload)
+
+    allow(Muni::Transit).to receive(:shapes).and_raise(Muni::Transit::Client::Error, 'Geometry unavailable')
+    get '/api/mobility/subway/shapes'
+    expect(last_response.status).to eq(503)
+    expect(JSON.parse(last_response.body)['error']).to eq('Geometry unavailable')
+  end
 end
