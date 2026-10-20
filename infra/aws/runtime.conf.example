@@ -4,4 +4,6 @@ BACKUP_BUCKET=replace-with-terraform-backup-bucket
 CLOUDWATCH_LOG_GROUP=replace-with-terraform-log-group
 ALERT_TOPIC_ARN=replace-with-terraform-alert-topic-arn
 MUNI_IMAGE=replace-with-your-reviewed-image-at-sha256-digest
-BACKUP_LOCAL_RETENTION_DAYS=2
+BACKUP_LOCAL_KEEP=2
+# Override for hosts whose local proxy listens on another port.
+MUNI_HEALTH_URL=http://127.0.0.1:8080/healthz

@@ -1,6 +1,5 @@
 (function (root) {
   'use strict';
-  const routes = ['Red', 'Orange', 'Blue', 'Green-B', 'Green-C', 'Green-D', 'Green-E', 'Mattapan'];
   const colors = {Red:'#da291c',Orange:'#ed8b00',Blue:'#003da5',Mattapan:'#da291c',
     'Green-B':'#00843d','Green-C':'#00843d','Green-D':'#00843d','Green-E':'#00843d'};
   const MAX_AGE_MS = 45000;
@@ -10,27 +9,14 @@
     return Number.isFinite(age) && age >= 0 && age <= MAX_AGE_MS;
   }
 
-  function duePredictions(rows, fetchedAt, now, notified) {
-    if (!fresh(fetchedAt, now)) return [];
-    return rows.filter(row => {
-      const at = Date.parse(row.arrival_time || row.departure_time);
-      return row.id && !['CANCELLED','SKIPPED'].includes(row.schedule_relationship) &&
-        !notified.has(row.id) && (!row.updated_at || fresh(row.updated_at, now)) &&
-        Number.isFinite(at) && at >= now && at - now <= 180000;
-    });
-  }
-
   function muniSubway() {
     let map = null;
     let stationMarkers = [];
     let vehicleMarkers = [];
     let timer = null;
-    let audioContext = null;
-    const notified = new Set();
     return {
-      routes, route:'', stations:[], vehicles:[], predictions:[], alerts:[], selectedStation:'',
+      stations:[], vehicles:[], predictions:[], alerts:[], selectedStation:'', view:'arrivals', listOpen:false,
       homeStation:localStorage.getItem('muni-subway-home') || '',
-      chimeEnabled:false, notificationsEnabled:false,
       stationsFetchedAt:'', vehiclesFetchedAt:'', predictionsFetchedAt:'', alertsFetchedAt:'',
       stationsError:'', vehiclesError:'', predictionsError:'', alertsError:'', mapError:'',
       async init() {
@@ -57,7 +43,7 @@
         } catch (_) { this.stations = []; this.stationsFetchedAt = ''; this.stationsError = 'Stations unavailable. Retry by reloading.'; }
       },
       async refresh() {
-        await Promise.all([this.loadVehicles(), this.loadAlerts(), this.loadPredictions(), this.loadHomeNotifications()]);
+        await Promise.all([this.loadVehicles(), this.loadAlerts(), this.loadPredictions()]);
       },
       async loadVehicles() {
         try {
@@ -85,56 +71,12 @@
           }).sort((a,b) => Date.parse(a.arrival_time || a.departure_time) -
                            Date.parse(b.arrival_time || b.departure_time)).slice(0, 8);
           this.predictionsFetchedAt = result.fetched_at; this.predictionsError = '';
-          this.notifyArrivals(result.data, result.fetched_at, station);
         } catch (_) { if (station === this.selectedStation) { this.predictions = []; this.predictionsFetchedAt = ''; this.predictionsError = 'Arrivals unavailable.'; } }
       },
-      selectStation() { this.predictions = []; this.predictionsFetchedAt = ''; this.loadPredictions(); this.renderMap(); },
+      selectView(view) { this.view = view; this.listOpen = true; },
+      selectStation() { this.selectView('arrivals'); this.predictions = []; this.predictionsFetchedAt = ''; this.loadPredictions(); this.renderMap(); },
       setHomeStation() { this.homeStation = this.selectedStation; localStorage.setItem('muni-subway-home', this.homeStation); },
-      toggleChime() {
-        this.chimeEnabled = !this.chimeEnabled;
-        if (this.chimeEnabled) {
-          const AudioContext = root.AudioContext || root.webkitAudioContext;
-          if (AudioContext) { audioContext ||= new AudioContext(); audioContext.resume(); }
-        }
-      },
-      async enableNotifications() {
-        if (!('Notification' in root)) return;
-        const permission = await root.Notification.requestPermission();
-        this.notificationsEnabled = permission === 'granted';
-      },
-      async loadHomeNotifications() {
-        if (!this.homeStation || this.homeStation === this.selectedStation ||
-            (!this.notificationsEnabled && !this.chimeEnabled)) return;
-        try {
-          const result = await this.get('/predictions/' + encodeURIComponent(this.homeStation));
-          this.notifyArrivals(result.data, result.fetched_at, this.homeStation);
-        } catch (_) { /* An unavailable response cannot trigger a notification. */ }
-      },
-      notifyArrivals(rows = this.predictions, fetchedAt = this.predictionsFetchedAt, stationId = this.selectedStation) {
-        if (!this.homeStation || stationId !== this.homeStation) return;
-        if (!this.notificationsEnabled && !this.chimeEnabled) return;
-        for (const row of duePredictions(rows, fetchedAt, Date.now(), notified)) {
-          notified.add(row.id);
-          const station = this.stations.find(s => s.id === this.homeStation);
-          if (this.notificationsEnabled && root.Notification.permission === 'granted') {
-            new root.Notification((station?.name || 'Home station') + ' train arriving soon',
-              {body: row.route + ' train expected within 3 minutes'});
-          }
-          if (this.chimeEnabled) this.playChime();
-        }
-      },
-      playChime() {
-        if (!audioContext) return;
-        const oscillator = audioContext.createOscillator();
-        const gain = audioContext.createGain();
-        oscillator.frequency.value = 660; gain.gain.value = 0.05;
-        oscillator.connect(gain); gain.connect(audioContext.destination);
-        oscillator.start(); oscillator.stop(audioContext.currentTime + 0.15);
-      },
-      filteredStations() { return this.stations.filter(s => !this.route || s.routes.includes(this.route)); },
-      visibleVehicles() { return this.vehicles.filter(v => (!this.route || v.route === this.route) &&
-        fresh(v.updated_at, Date.now())); },
-      visibleAlerts() { return this.alerts.filter(a => !this.route || a.routes.includes(this.route)); },
+      visibleVehicles() { return this.vehicles.filter(v => fresh(v.updated_at, Date.now())); },
       routeLabel(value) { return value?.replace('Green-', 'Green ') || 'Train'; },
       arrivalLabel(row) {
         const at = Date.parse(row.arrival_time || row.departure_time);
@@ -165,7 +107,7 @@
         if (!map) return;
         stationMarkers.forEach(marker => marker.remove()); stationMarkers = [];
         vehicleMarkers.forEach(marker => marker.remove()); vehicleMarkers = [];
-        for (const station of this.filteredStations()) {
+        for (const station of this.stations) {
           if (!Number.isFinite(Number(station.latitude)) || !Number.isFinite(Number(station.longitude))) continue;
           const marker = document.createElement('button'); marker.type = 'button';
           marker.className = 'subway-marker' + (station.id === this.selectedStation ? ' subway-marker--selected' : '');
@@ -185,5 +127,5 @@
   }
 
   root.muniSubway = muniSubway;
-  if (typeof module !== 'undefined') module.exports = {fresh, duePredictions, muniSubway};
+  if (typeof module !== 'undefined') module.exports = {fresh, muniSubway};
 })(typeof window === 'undefined' ? globalThis : window);

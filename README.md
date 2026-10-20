@@ -163,7 +163,7 @@ The regional Train app at `/mobility/subway` shows MBTA Red, Orange, Blue, Green
 
 Muni fetches canonical parent stations and route membership from the MBTA V3 API, follows pagination, and serves same-origin endpoints at `/api/mobility/subway/stations`, `/vehicles`, `/predictions/:stop_id`, and `/alerts`. Set `MBTA_API_KEY` on the server for a higher request quota; the browser never receives the key. Responses include `fetched_at`, and unavailable upstream data is reported explicitly. No vehicles or arrival times are simulated.
 
-Chimes and browser notifications are off by default. Each requires a user action to enable. Home-station notifications only fire for fresh MBTA predictions within three minutes of arrival. The standalone CLI supports `muni-get-transit [--station ID | --vehicles | --alerts] [--json]`; the regional MCP server provides matching tools.
+The map shows all subway routes. Select a station for arrivals and save it as your home station to restore it on your next visit. Station arrivals fill the left sidebar by default. The Safety icon opens service alerts, and the Train icon returns to arrivals. Small screens have a map/list toggle. The standalone CLI supports `muni-get-transit [--station ID | --vehicles | --alerts] [--json]`; the regional MCP server provides matching tools.
 
 ## Water Quality (optional)
 

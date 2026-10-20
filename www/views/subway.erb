@@ -4,41 +4,41 @@
 <div class="shell native-app subway-shell" x-data="muniSubway()">
   <header class="topbar ui-material native-chrome">
     <%= erb :_municipality_selector, layout: false %>
-    <nav class="topbar__nav" aria-label="Site"><a class="topbar__link" href="/water/charles">Charles River</a></nav>
   </header>
   <main class="shell__body subway-body">
     <nav class="rail native-sidebar" aria-label="Apps"><div class="rail__primary">
-      <a class="rail__btn rail__btn--link" href="/" title="Map" aria-label="Map"><span class="rail__icon" data-icon="map"></span><span class="rail__label">Map</span></a>
-      <a class="rail__btn rail__btn--link is-active" href="/mobility/subway" title="Train" aria-label="Train" aria-current="page"><span class="rail__icon" data-icon="train"></span><span class="rail__label">Train</span></a>
+      <a class="rail__btn rail__btn--link" href="/?hall=<%= @hall.slug %>" title="Map" aria-label="Map"><span class="rail__icon" data-icon="map"></span><span class="rail__label">Map</span></a>
+      <a class="rail__btn rail__btn--link" :class="{'is-active': view === 'arrivals'}" @click.prevent="selectView('arrivals')" href="/mobility/subway?hall=<%= @hall.slug %>" title="Train" aria-label="Train" :aria-current="view === 'arrivals' ? 'page' : null"><span class="rail__icon" data-icon="train"></span><span class="rail__label">Train</span></a>
+      <button type="button" class="rail__btn" :class="{'is-active': view === 'alerts'}" @click="selectView('alerts')" title="Service alerts" aria-label="Service alerts" :aria-pressed="view === 'alerts'"><span class="rail__icon" data-icon="caution"></span><span class="rail__label">Service alerts</span></button>
     </div></nav>
-    <div class="subway-workspace">
-      <header class="subway-heading">
-        <div><h1>MBTA Subway</h1><p>Red, Orange, Blue, Green B/C/D/E, and Mattapan</p></div>
-        <div class="subway-settings">
-          <button type="button" class="ui-button" @click="toggleChime()" :aria-pressed="chimeEnabled" x-text="chimeEnabled ? 'Chime on' : 'Chime off'"></button>
-          <button type="button" class="ui-button" @click="enableNotifications()" :disabled="notificationsEnabled" x-text="notificationsEnabled ? 'Notifications on' : 'Enable notifications'"></button>
+    <aside id="subway-sidebar" class="list-pane native-pane subway-side" :class="{'is-open': listOpen}" :aria-label="view === 'arrivals' ? 'Station arrivals' : 'Service alerts'">
+      <section class="subway-board" x-show="view === 'arrivals'" aria-labelledby="subway-arrivals-title">
+        <header class="list-pane__head"><h2 id="subway-arrivals-title">Station arrivals</h2></header>
+        <div class="subway-station-picker">
+          <label>Station <select x-model="selectedStation" @change="selectStation()"><option value="">Choose a station</option><template x-for="station in stations" :key="station.id"><option :value="station.id" x-text="station.name"></option></template></select></label>
+          <button type="button" class="subway-home" x-show="selectedStation" @click="setHomeStation()" x-text="homeStation === selectedStation ? 'Home station saved' : 'Make home station'"></button>
         </div>
-      </header>
-      <div class="subway-grid">
-        <section class="subway-map-panel native-pane" aria-label="Subway map">
-          <div class="subway-toolbar"><label>Route <select x-model="route" @change="renderMap()"><option value="">All routes</option><template x-for="name in routes" :key="name"><option :value="name" x-text="name"></option></template></select></label><span x-text="visibleVehicles().length + ' recent vehicles'"></span></div>
-          <div id="subway-map" class="subway-map" aria-label="Geographic map of MBTA subway stations and vehicles"></div>
-          <p class="subway-state" role="status" x-show="stationsError || vehiclesError || mapError" x-text="stationsError || vehiclesError || mapError"></p>
-          <p class="subway-timestamp" x-show="vehiclesFetchedAt" x-text="'Vehicles fetched ' + stamp(vehiclesFetchedAt)"></p>
-        </section>
-        <div class="subway-side">
-          <section class="native-pane subway-board" aria-label="Station arrivals">
-            <h2>Station arrivals</h2>
-            <label>Station <select x-model="selectedStation" @change="selectStation()"><option value="">Choose a station</option><template x-for="station in filteredStations()" :key="station.id"><option :value="station.id" x-text="station.name"></option></template></select></label>
-            <button type="button" class="subway-home" x-show="selectedStation" @click="setHomeStation()" x-text="homeStation === selectedStation ? 'Home station saved' : 'Make home station'"></button>
-            <p class="subway-state" role="status" x-show="predictionsError" x-text="predictionsError"></p>
-            <p class="subway-timestamp" x-show="predictionsFetchedAt" x-text="'Arrivals fetched ' + stamp(predictionsFetchedAt)"></p>
-            <ul><template x-for="prediction in predictions" :key="prediction.id"><li><strong x-text="routeLabel(prediction.route) + (prediction.direction_id == null ? '' : ' · ' + (prediction.direction_id === 0 ? 'Inbound' : 'Outbound'))"></strong><span x-text="arrivalLabel(prediction)"></span></li></template></ul>
-            <p x-show="selectedStation && !predictionsError && !predictions.length">No arrival predictions available.</p>
-          </section>
-          <section class="native-pane subway-alerts" aria-label="Service alerts"><h2>Service alerts</h2><p class="subway-state" role="status" x-show="alertsError" x-text="alertsError"></p><p class="subway-timestamp" x-show="alertsFetchedAt" x-text="'Alerts fetched ' + stamp(alertsFetchedAt)"></p><ul><template x-for="alert in visibleAlerts()" :key="alert.id"><li><strong x-text="alert.header || alert.effect || 'Service alert'"></strong><span x-text="alert.routes.join(', ')"></span></li></template></ul><p x-show="!alertsError && !visibleAlerts().length">No current service alerts.</p></section>
-        </div>
+        <p class="subway-state" role="status" x-show="predictionsError" x-text="predictionsError"></p>
+        <p class="subway-timestamp" x-show="predictionsFetchedAt" x-text="'Arrivals fetched ' + stamp(predictionsFetchedAt)"></p>
+        <ul><template x-for="prediction in predictions" :key="prediction.id"><li><strong x-text="routeLabel(prediction.route) + (prediction.direction_id == null ? '' : ' · ' + (prediction.direction_id === 0 ? 'Inbound' : 'Outbound'))"></strong><span x-text="arrivalLabel(prediction)"></span></li></template></ul>
+        <p class="subway-empty" x-show="!selectedStation">Choose a station from the map or list to see arrivals.</p>
+        <p class="subway-empty" x-show="selectedStation && !predictionsError && !predictions.length">No arrival predictions available.</p>
+      </section>
+      <section class="subway-alerts" x-show="view === 'alerts'" x-cloak aria-labelledby="subway-alerts-title">
+        <header class="list-pane__head"><h2 id="subway-alerts-title">Service alerts</h2></header>
+        <p class="subway-state" role="status" x-show="alertsError" x-text="alertsError"></p>
+        <p class="subway-timestamp" x-show="alertsFetchedAt" x-text="'Alerts fetched ' + stamp(alertsFetchedAt)"></p>
+        <ul><template x-for="alert in alerts" :key="alert.id"><li><strong x-text="alert.header || alert.effect || 'Service alert'"></strong><span x-text="alert.routes.join(', ')"></span></li></template></ul>
+        <p class="subway-empty" x-show="!alertsError && !alerts.length">No current service alerts.</p>
+      </section>
+    </aside>
+    <section class="body-pane native-map subway-map-panel" aria-label="Subway map">
+      <div id="subway-map" class="body-pane__map subway-map" aria-label="Geographic map of MBTA subway stations and vehicles"></div>
+      <div class="subway-map-status ui-material" aria-live="polite">
+        <p class="subway-state" role="status" x-show="stationsError || vehiclesError || mapError" x-text="stationsError || vehiclesError || mapError"></p>
+        <p class="subway-timestamp" x-show="vehiclesFetchedAt" x-text="visibleVehicles().length + ' recent vehicles · Updated ' + stamp(vehiclesFetchedAt)"></p>
       </div>
-    </div>
+    </section>
+    <button type="button" class="mobile-list-toggle ui-button" @click="listOpen = !listOpen" :aria-expanded="listOpen" aria-controls="subway-sidebar" x-text="listOpen ? 'Show map' : (view === 'arrivals' ? 'Station arrivals' : 'Service alerts')"></button>
   </main>
 </div>
