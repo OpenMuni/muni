@@ -21,6 +21,7 @@ RSpec.describe 'Cognito account routes' do
   let(:provider) do
     instance_double(Muni::Www::Auth::Provider, exchange: tokens, validate: claims, verify_user: nil,
                                             credentials: [], global_sign_out: nil, revoke: nil,
+                                            enrollment_url: 'https://auth.muni.example/passkeys/add?client_id=client',
                                             logout_url: 'https://auth.muni.example/logout', delete_user: nil)
   end
   let(:service) { Muni::Www::Auth::Service.new(config, provider: provider) }
@@ -48,6 +49,14 @@ RSpec.describe 'Cognito account routes' do
     row = Muni::Accounts.session(rack_mock_session.cookie_jar['__Host-muni_session'])
     post "https://muni.example#{path}", { csrf: row&.fetch(:csrf) }.merge(attributes),
          'HTTP_ORIGIN' => 'https://muni.example'
+  end
+
+  def begin_enrollment
+    sign_in
+    submit '/account/passkeys'
+    state = URI.decode_www_form(URI(last_response.location).query).to_h.fetch('state')
+    get 'https://muni.example/auth/cognito/callback', state: state, code: 'reauth-code'
+    rack_mock_session.cookie_jar['__Host-muni_session']
   end
 
   it 'establishes an encrypted server-side session with a host-only secure cookie' do
@@ -122,11 +131,94 @@ RSpec.describe 'Cognito account routes' do
   end
 
   it 'requires a fresh Cognito sign-in before hosted passkey enrollment' do
-    sign_in
-    submit '/account/passkeys'
-    state = URI.decode_www_form(URI(last_response.location).query).to_h.fetch('state')
-    get 'https://muni.example/auth/cognito/callback', state: state, code: 'code'
+    begin_enrollment
     expect(last_response.location).to start_with('https://auth.muni.example/passkeys/add?')
+    expect(last_response.headers['set-cookie'].join).to include('__Host-muni_enrollment=', 'max-age=600',
+                                                                'secure', 'httponly', 'samesite=lax')
+  end
+
+  it 'handles the real hosted enrollment result without exchanging a code or creating another session' do
+    sid = begin_enrollment
+    allow(provider).to receive(:credentials).and_return([{ credential_id: 'platform-key' }])
+    get 'https://muni.example/auth/passkeys/complete', result: 'success'
+    expect(last_response.status).to eq(303)
+    expect(last_response.location).to end_with('/account')
+    expect(provider).to have_received(:credentials).with(tokens).once
+    expect(provider).to have_received(:exchange).exactly(2).times
+    expect(rack_mock_session.cookie_jar['__Host-muni_session']).to eq(sid)
+    expect(Muni::Store.db[:account_sessions].count).to eq(1)
+    expect(Muni::Store.db[:accounts].count).to eq(1)
+    get 'https://muni.example/auth/passkeys/complete', result: 'success'
+    expect(last_response.status).to eq(400)
+    expect(provider).to have_received(:credentials).once
+  end
+
+  it 'does not trust an enrollment result as proof of authentication' do
+    get 'https://muni.example/auth/passkeys/complete', result: 'success'
+    expect(last_response.status).to eq(400)
+    expect(Muni::Store.db[:account_sessions].count).to eq(0)
+    expect(Muni::Store.db[:accounts].count).to eq(0)
+    expect(provider).not_to have_received(:exchange)
+    expect(provider).not_to have_received(:credentials)
+    get 'https://muni.example/auth/cognito/callback', result: 'success'
+    expect(last_response.status).to eq(400)
+  end
+
+  it 'returns safely to settings when enrollment adds no credential, regardless of the result query' do
+    begin_enrollment
+    get 'https://muni.example/auth/passkeys/complete', result: 'canceled'
+    expect(last_response.location).to end_with('/account')
+    follow_redirect!
+    expect(last_response.body).to include('No passkeys registered.', 'Your password remains available.')
+    expect(Muni::Store.db[:accounts].count).to eq(1)
+  end
+
+  it 'rejects an enrollment return with no browser receipt or an expired receipt' do
+    begin_enrollment
+    receipt = rack_mock_session.cookie_jar['__Host-muni_enrollment']
+    rack_mock_session.cookie_jar.delete('__Host-muni_enrollment')
+    get 'https://muni.example/auth/passkeys/complete', result: 'success'
+    expect(last_response.status).to eq(400)
+    rack_mock_session.cookie_jar['__Host-muni_enrollment'] = receipt
+    Muni::Store.db[:account_auth_transactions].update(expires_at: Time.now.to_i - 1)
+    get 'https://muni.example/auth/passkeys/complete', result: 'success'
+    expect(last_response.status).to eq(400)
+    expect(provider).not_to have_received(:credentials)
+  end
+
+  it 'rejects enrollment completion from another session even for the same account' do
+    begin_enrollment
+    sign_in
+    get 'https://muni.example/auth/passkeys/complete', result: 'success'
+    expect(last_response.status).to eq(400)
+    expect(provider).not_to have_received(:credentials)
+    expect(Muni::Store.db[:accounts].count).to eq(1)
+  end
+
+  it 'rejects enrollment completion after the browser changes accounts' do
+    begin_enrollment
+    allow(provider).to receive(:validate).and_return(claims.merge('sub' => 'another-subject'))
+    sign_in
+    get 'https://muni.example/auth/passkeys/complete', result: 'success'
+    expect(last_response.status).to eq(400)
+    expect(provider).not_to have_received(:credentials)
+  end
+
+  it 'rejects enrollment completion after the account sessions are revoked' do
+    sid = begin_enrollment
+    Muni::Accounts.revoke_all(Muni::Accounts.session(sid)[:account_id])
+    get 'https://muni.example/auth/passkeys/complete', result: 'success'
+    expect(last_response.status).to eq(400)
+    expect(provider).not_to have_received(:credentials)
+    expect(Muni::Store.db[:account_sessions].count).to eq(0)
+  end
+
+  it 'fails closed on a credential-list outage without removing the signed-in account' do
+    sid = begin_enrollment
+    allow(provider).to receive(:credentials).and_raise(Muni::Www::Auth::Unavailable)
+    get 'https://muni.example/auth/passkeys/complete', result: 'success'
+    expect(last_response.status).to eq(503)
+    expect(Muni::Accounts.session(sid)).not_to be_nil
   end
 
   it 'requires CSRF and matching origin to change a preference' do

@@ -26,8 +26,13 @@ module Muni
                     code_challenge_method: 'S256',
                     code_challenge: Base64.urlsafe_encode64(Digest::SHA256.digest(transaction.fetch('verifier')),
                                                             padding: false) }
-          query[:prompt] = 'login' unless transaction['purpose'] == 'enroll'
+          query[:prompt] = 'login'
           "#{@config.domain}#{path}?#{URI.encode_www_form(query)}"
+        end
+
+        def enrollment_url
+          query = { client_id: @config.client_id, redirect_uri: @config.enrollment_return }
+          "#{@config.domain}/passkeys/add?#{URI.encode_www_form(query)}"
         end
 
         def exchange(code, verifier)

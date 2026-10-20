@@ -32,6 +32,7 @@ module Muni
 
         def issuer = "https://cognito-idp.#{region}.amazonaws.com/#{pool_id}"
         def callback = "#{base_url}/auth/cognito/callback"
+        def enrollment_return = "#{base_url}/auth/passkeys/complete"
         def signed_out = "#{base_url}/auth/signed-out"
 
         private

@@ -8,6 +8,7 @@ module Muni
       class Accounts < Sinatra::Base
         SESSION_COOKIE = '__Host-muni_session'.freeze
         FLOW_COOKIE = '__Host-muni_flow'.freeze
+        ENROLLMENT_COOKIE = '__Host-muni_enrollment'.freeze
         set :views, File.expand_path('../views', __dir__)
         set :public_folder, File.expand_path('../public', __dir__)
         set :host_authorization, { permitted_hosts: [] }
@@ -46,10 +47,23 @@ module Muni
           cookie(SESSION_COOKIE, result.fetch(:sid), Muni::Accounts::MAX_SECONDS)
           log_event('sign_in_completed')
           if result[:purpose] == 'enroll_start'
-            row = auth.session(result[:sid])
-            start_flow('enroll', path: '/passkeys/add', account: row.fetch(:account))
+            halt 404 unless Auth.passkeys_enabled?
+
+            browser = SecureRandom.urlsafe_base64(32)
+            destination = auth.begin_enrollment(sid: result[:sid], browser: browser)
+            cookie(ENROLLMENT_COOKIE, browser, 600)
+            redirect destination
           end
           redirect '/account'
+        end
+
+        get '/auth/passkeys/complete' do
+          halt 404 unless Auth.passkeys_enabled?
+
+          auth.complete_enrollment(sid: sid, browser: request.cookies[ENROLLMENT_COOKIE])
+          cookie(ENROLLMENT_COOKIE, '', 0)
+          log_event('passkey_enrollment_returned')
+          redirect '/account', 303
         end
 
         get '/account' do

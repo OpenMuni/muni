@@ -34,7 +34,13 @@ pilot; enable it only alongside the pool's `passkeys_enabled=true`.
   Account requests require the configured HTTPS host. Configure
   trusted proxies to match actual socket peers, not all private networks.
 - Passkey enrollment always starts with fresh, same-subject authentication and
-  then Cognito's `/passkeys/add`. List/removal use the user's access token.
+  then Cognito's `/passkeys/add`. Hosted enrollment returns a result indicator,
+  not an authorization code. Its separate `/auth/passkeys/complete` return URL
+  requires a ten-minute, one-use cookie receipt bound to the freshly authenticated
+  session and account. The result query never authenticates anyone or proves a
+  credential was added: Muni reads Cognito's credential list using the existing
+  user's access token. Cancellation leaves password sign-in available.
+  Both return URLs must be registered exactly on the app client. List/removal use the user's access token.
   Removal, deletion, and global logout require authentication within five minutes.
   If reauthentication is needed, the user returns to settings and repeats the
   action. Removing the last passkey is allowed; email/password remains available.
