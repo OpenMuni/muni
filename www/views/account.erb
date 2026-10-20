@@ -1,0 +1,56 @@
+<h1>Your account</h1>
+<p><%= h(@account[:email]) %></p>
+<% if @message %><p role="status"><%= h(@message) %></p><% end %>
+<section aria-labelledby="city-title">
+  <h2 id="city-title">Your city</h2>
+  <p>This preference does not verify residency. Public information is available to everyone.</p>
+  <form method="post" action="/account/preference">
+    <input type="hidden" name="csrf" value="<%= h(@csrf) %>">
+    <label for="hall">Preferred city</label>
+    <select name="hall" id="hall">
+      <% Muni::Hall.all.select(&:public?).each do |hall| %>
+        <option value="<%= h(hall.slug) %>" <%= 'selected' if @account[:preferred_hall] == hall.slug %>><%= h(hall.name) %></option>
+      <% end %>
+    </select>
+    <button type="submit">Save city</button>
+  </form>
+</section>
+<% if Muni::Www::Auth.passkeys_enabled? %>
+<section aria-labelledby="passkeys-title">
+  <h2 id="passkeys-title">Passkeys</h2>
+  <p>Use your device’s screen lock or a security key to sign in. Your password remains available.</p>
+  <% if @credentials.empty? %><p>No passkeys registered.</p><% end %>
+  <% @credentials.each do |credential| %>
+    <form method="post" action="/account/passkeys/remove" class="credential">
+      <input type="hidden" name="csrf" value="<%= h(@csrf) %>">
+      <input type="hidden" name="credential_id" value="<%= h(credential[:credential_id]) %>">
+      <span><%= h(credential[:friendly_credential_name] || 'Passkey') %></span>
+      <button type="submit">Remove passkey</button>
+    </form>
+  <% end %>
+  <form method="post" action="/account/passkeys">
+    <input type="hidden" name="csrf" value="<%= h(@csrf) %>">
+    <button type="submit">Add a passkey</button>
+  </form>
+  <p>If your browser cannot use passkeys, choose password sign-in. Lost all your passkeys? Sign in with your password, or <a href="/recover">reset your password by email</a>, then remove the lost passkeys here.</p>
+</section>
+<% end %>
+<section aria-labelledby="security-title">
+  <h2 id="security-title">Account security</h2>
+  <p><a href="/recover">Reset your password</a></p>
+  <% { '/logout' => 'Sign out', '/logout-all' => 'Sign out everywhere' }.each do |path, label| %>
+    <form method="post" action="<%= path %>">
+      <input type="hidden" name="csrf" value="<%= h(@csrf) %>">
+      <button type="submit"><%= label %></button>
+    </form>
+  <% end %>
+</section>
+<section aria-labelledby="delete-title">
+  <h2 id="delete-title">Delete account</h2>
+  <p>This removes your login, passkeys, and city preference. Public municipal records are unaffected. Backup copies expire within the backup retention period.</p>
+  <form method="post" action="/account/delete">
+    <input type="hidden" name="csrf" value="<%= h(@csrf) %>">
+    <label><input type="checkbox" name="confirm" value="delete" required> I want to delete my account.</label>
+    <button type="submit">Delete my account</button>
+  </form>
+</section>

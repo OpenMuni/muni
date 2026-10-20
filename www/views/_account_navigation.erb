@@ -1,0 +1,10 @@
+<% if Muni::Www::Auth.mode == 'public' %>
+  <details class="account-nav">
+    <summary class="topbar__link">Account</summary>
+    <div class="account-nav__menu">
+      <a class="topbar__link" href="/login">Sign in</a>
+      <a class="topbar__link" href="/signup">Create account</a>
+      <a class="topbar__link" href="/account">Account settings</a>
+    </div>
+  </details>
+<% end %>

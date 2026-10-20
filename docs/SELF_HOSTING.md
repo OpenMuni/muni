@@ -26,7 +26,11 @@ Terraform. Bring your own deployment configuration, app name, domain, storage,
 and credentials. For the bounded 311 list and map projection, run
 `bundle exec ruby bin/prepare-efficiency` before serving the updated app.
 
-Connected sign-in, resident report submission, and the operator view are not
-part of this source release. Restore them only after an independent identity
-system and a privacy review are in place. See [data and attribution](DATA_AND_ATTRIBUTION.md)
-and the [contribution guide](../CONTRIBUTING.md).
+Authentication defaults to `MUNI_AUTH_MODE=off`. Local development, tests, and
+public municipal pages need no Cognito pool or AWS credentials. Optional accounts
+use your own Cognito user pool and HTTPS authentication domain; follow the
+[account operations guide](../infra/aws/auth/README.md). Tests use isolated mock
+providers. A future staging installation needs its own pool, client, and domain.
+Resident report submission and the operator view remain excluded. See
+[data and attribution](DATA_AND_ATTRIBUTION.md) and the
+[contribution guide](../CONTRIBUTING.md).

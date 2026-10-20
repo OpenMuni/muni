@@ -29,6 +29,15 @@ jobs:
       - name: AWS host operations regression
         run: python3 -m unittest discover -s infra/aws -p 'test_*.py'
 
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: 1.10.5
+      - name: Validate isolated account infrastructure without AWS credentials
+        run: |
+          terraform -chdir=infra/aws/auth fmt -check
+          terraform -chdir=infra/aws/auth init -backend=false -lockfile=readonly
+          terraform -chdir=infra/aws/auth validate
+
       - name: RSpec
         run: bin/test-all
 
@@ -99,6 +108,21 @@ jobs:
           trap 'docker logs muni-smoke; docker rm --force muni-smoke' EXIT
           curl --fail --retry 20 --retry-delay 1 --retry-all-errors http://127.0.0.1:19458/healthz
           curl --fail http://127.0.0.1:19458/vendor/maplibre-gl/maplibre-gl-worker.mjs --output /dev/null
+          curl --silent --output /dev/null -H 'Cookie: probe=MUNI_LOG_PROBE_COOKIE' \
+            'http://127.0.0.1:19458/auth/cognito/callback?code=MUNI_LOG_PROBE_CODE'
+          ! docker logs muni-smoke 2>&1 | grep -q MUNI_LOG_PROBE
+      - name: Proxy errors do not expose callback queries or credentials
+        run: |
+          docker run --detach --name muni-proxy-error --publish 127.0.0.1:19459:8080 \
+            --env MUNI_WEB_UPSTREAM=127.0.0.1:1 --entrypoint caddy \
+            muni-security-check run --config /app/Caddyfile --adapter caddyfile
+          trap 'docker logs muni-proxy-error; docker rm --force muni-proxy-error' EXIT
+          curl --fail --retry 20 --retry-delay 1 --retry-all-errors http://127.0.0.1:19459/proxy-healthz
+          log_probe=MUNI_LOG_PROBE_TOKEN
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            -H 'Cookie: probe=MUNI_LOG_PROBE_COOKIE' -H "Authorization: Bearer $log_probe" \
+            'http://127.0.0.1:19459/auth/cognito/callback?code=MUNI_LOG_PROBE_CODE')" = 502
+          ! docker logs muni-proxy-error 2>&1 | grep -q MUNI_LOG_PROBE
       - name: Scan fixable high and critical container vulnerabilities
         run: |
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
