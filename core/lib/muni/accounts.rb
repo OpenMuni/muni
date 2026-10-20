@@ -85,10 +85,14 @@ module Muni
         end
       end
 
-      def session(token, now: Time.now.to_i)
+      def session_record(token)
         return nil if token.to_s.empty?
 
-        row = db[:account_sessions][id_hash: digest(token)]
+        db[:account_sessions][id_hash: digest(token)]
+      end
+
+      def session(token, now: Time.now.to_i)
+        row = session_record(token)
         return nil unless row && row[:expires_at] > now && row[:idle_until] > now
 
         owner = account(row[:account_id])

@@ -191,6 +191,30 @@ RSpec.describe 'Cognito account routes' do
     expect(last_response.location).to eq('https://auth.muni.example/logout')
   end
 
+  it 'can sign out without refreshing an expired access token during a provider outage' do
+    sign_in
+    token = rack_mock_session.cookie_jar['__Host-muni_session']
+    Muni::Store.db[:account_sessions].update(token_expires_at: Time.now.to_i - 1)
+    allow(provider).to receive(:refresh).and_raise(Muni::Www::Auth::Unavailable)
+    allow(provider).to receive(:revoke).and_raise(Muni::Www::Auth::Unavailable)
+    submit '/logout', csrf: 'forged'
+    expect(last_response.status).to eq(403)
+    expect(Muni::Accounts.session(token)).not_to be_nil
+    submit '/logout'
+    expect(last_response.status).to eq(303)
+    expect(Muni::Accounts.session_record(token)).to be_nil
+    expect(provider).not_to have_received(:refresh)
+  end
+
+  it 'revokes local sessions before a failed global provider sign-out' do
+    sign_in
+    Muni::Store.db[:account_sessions].update(token_expires_at: Time.now.to_i - 1)
+    allow(provider).to receive(:global_sign_out).and_raise(Muni::Www::Auth::Unavailable)
+    submit '/logout-all'
+    expect(last_response.status).to eq(503)
+    expect(Muni::Store.db[:account_sessions].count).to eq(0)
+  end
+
   it 'retains a disabled deletion record when the provider is unavailable' do
     row = sign_in
     allow(provider).to receive(:delete_user).and_raise(Muni::Www::Auth::Unavailable)

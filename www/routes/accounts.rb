@@ -106,12 +106,14 @@ module Muni
         end
 
         post '/logout' do
-          csrf!
-          tokens = account_session[:plaintext_tokens]
+          # Logout must not depend on token refresh or provider availability.
+          row = Muni::Accounts.session_record(sid)
+          csrf!(row) if row
+          halt 403 unless request.env['HTTP_ORIGIN'] == auth.config.base_url
           Muni::Accounts.remove_session(sid)
           clear_session
           begin
-            auth.provider.revoke(tokens)
+            auth.provider.revoke(auth.vault.open(row[:tokens])) if row
           rescue Auth::Error
             log_event('token_revocation_failed')
           end
@@ -119,12 +121,12 @@ module Muni
         end
 
         post '/logout-all' do
-          csrf!
-          recent!
-          tokens = account_session[:plaintext_tokens]
-          Muni::Accounts.revoke_all(account_session[:account_id])
+          row = Muni::Accounts.session(sid)
+          csrf!(row)
+          recent!(row: row)
+          Muni::Accounts.revoke_all(row[:account_id])
           clear_session
-          auth.provider.global_sign_out(tokens)
+          auth.provider.global_sign_out(auth.vault.open(row[:tokens]))
           log_event('all_sessions_revoked')
           redirect auth.provider.logout_url, 303
         end

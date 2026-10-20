@@ -22,10 +22,10 @@ module Muni
           redirect '/login' unless account_session
         end
 
-        def csrf!
-          protected_account!
+        def csrf!(row = account_session)
+          redirect '/login' unless row
           valid = request.env['HTTP_ORIGIN'] == auth.config.base_url &&
-                  Rack::Utils.secure_compare(params['csrf'].to_s, account_session[:csrf])
+                  Rack::Utils.secure_compare(params['csrf'].to_s, row[:csrf])
           halt 403, 'Please reload the account page and try again.' unless valid
         end
 
@@ -35,10 +35,10 @@ module Muni
           redirect auth.begin_flow(purpose: purpose, browser: browser, path: path, account: account)
         end
 
-        def recent!(purpose = 'reauth')
-          return if account_session[:auth_time] > Time.now.to_i - 300
+        def recent!(purpose = 'reauth', row: account_session)
+          return if row[:auth_time] > Time.now.to_i - 300
 
-          start_flow(purpose, account: account_session[:account])
+          start_flow(purpose, account: row[:account])
         end
 
         def render_account(message = nil)

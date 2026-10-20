@@ -86,7 +86,7 @@ resource "aws_sns_topic_subscription" "alerts" {
 resource "aws_cloudwatch_log_metric_filter" "errors" {
   name           = "${var.project_name}-errors"
   log_group_name = var.app_log_group
-  pattern        = "\"authentication_failed\""
+  pattern        = "%authentication_failed|token_revocation_failed%"
   metric_transformation {
     name      = "AuthenticationErrors"
     namespace = var.project_name
