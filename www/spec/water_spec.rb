@@ -59,11 +59,15 @@ RSpec.describe 'Charles River region and Water Quality API' do
   end
 
   it 'shares read-only evidence between municipal API clients and the river region' do
+    # Compare the same reporting window even when the requests cross a second boundary.
+    allow(Time).to receive(:now).and_return(Time.utc(2026, 10, 20, 20, 39, 39))
     get '/api/water/charles?hall=cambridge'
+    expect(last_response.status).to eq(200)
     cambridge = JSON.parse(last_response.body)
     get '/api/water/charles?hall=boston'
+    expect(last_response.status).to eq(200)
     boston = JSON.parse(last_response.body)
-    expect(cambridge.except('generated_at')).to eq(boston.except('generated_at'))
+    expect(cambridge).to eq(boston)
     expect(boston['shared_with']).to eq(%w[cambridge boston])
   end
 

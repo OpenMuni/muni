@@ -13,6 +13,10 @@ navigation; the Cognito WAF allowlist is the actual enrollment restriction.
 `public` exposes a top-right **Login** link to `/login` on public pages, replaced
 by the signed-in user's first name (or **Account** until saved) linking to
 `/account`. Restart the application after configuration changes.
+Application mode only controls routes/navigation; it does not change AWS WAF.
+Use the login-only cutover below when existing accounts need access before public
+signup is ready. `pilot_mode` controls network access to **all** authentication;
+`signup_enabled` separately controls Cognito self-registration.
 `MUNI_AUTH_PASSKEYS_ENABLED=0` keeps passkey management closed during the password
 pilot; enable it only alongside the pool's `passkeys_enabled=true`.
 
@@ -21,9 +25,12 @@ pilot; enable it only alongside the pool's `passkeys_enabled=true`.
   verified-user checks. Transactions expire after ten minutes and are consumed
   once. External return URLs are ignored.
 - `/login` continues into Cognito managed login with email/password, its
-  **Create an account** option, and enabled passkey sign-in. No local password
+  **Create an account** option when `signup_enabled=true`, and enabled passkey sign-in. No local password
   form or Cognito attribute change is needed. Signup remains subject to the
   existing WAF, SES and launch gates; exposing navigation does not open enrollment.
+  With `signup_enabled=false`, Cognito hides signup and rejects direct `SignUp`
+  requests, including attempts through Muni's `/signup` redirect. Existing users
+  can still sign in; disabling signup does not delete users or sessions.
 - Identity is the pool issuer plus subject, never email, names or legacy identifiers.
   SQLite `accounts`, `account_sessions`, and `account_auth_transactions` are
   operational tables created additively through the existing writer lock.
@@ -147,6 +154,51 @@ access tokens; confidential client credentials remain on the backend.
 
 ## Release and cutover
 
+### Existing-account login before public signup
+
+A public Login button combined with `pilot_mode=true` sends visitors outside
+the tester IP allowlist to a **403 Forbidden** at `auth.muni.fyi`. This restriction
+also affects existing accounts on a new network; it is not a password or callback
+failure. Check the associated Cognito WAF rules and the `pilot-only` versus
+`authentication-rate` `BlockedRequests` metrics to distinguish the causes.
+
+Use the checked-in login-only overlay **after** the private production var-file:
+
+```sh
+terraform -chdir=infra/aws/auth init -backend-config=/private/path/backend.hcl
+terraform -chdir=infra/aws/auth plan \
+  -var-file=/private/path/production.tfvars \
+  -var-file=login-only.example \
+  -out=/private/path/login-only.tfplan
+terraform -chdir=infra/aws/auth apply /private/path/login-only.tfplan
+```
+
+Review the saved plan: it must set Cognito `AllowAdminCreateUserOnly=true` and
+remove only the `pilot-only` WAF rule, retaining the 300-requests/IP/five-minute
+rate rule, its backend exclusion, and the pool association. Reject resource
+replacements/deletions or unrelated changes. WAF depends on the pool update so
+Terraform closes self-registration before removing the network restriction.
+Keep these two overrides in subsequent plans (or persist them in the private
+production var-file) to avoid restoring the pilot block or reopening signup.
+
+Set `MUNI_AUTH_MODE=public` if needed and restart the app. After AWS propagation,
+verify that `/login` reaches managed login from a network outside the old allowlist,
+that an existing account can sign in, and that signup is unavailable. No new app
+image is needed if public navigation is already deployed. Password-reset emails
+still obey SES sandbox recipient restrictions; this change does not grant SES
+production access or enable public enrollment. Keep pilot recipients verified
+until SES production access and delivery tests pass.
+
+Offline regression checks (no AWS credentials or live changes):
+
+```sh
+terraform -chdir=infra/aws/auth init -backend=false -lockfile=readonly
+terraform -chdir=infra/aws/auth validate
+terraform -chdir=infra/aws/auth test -var-file=login-only.example
+```
+
+### Full release
+
 1. Record DNS, current immutable image, service/drop-ins, mounts, proxy, protected
    configuration, backup receipts and collection health. Check no overlay is
    mounted or loaded. Keep deployment evidence outside Git; no tokens or codes.
@@ -194,8 +246,9 @@ access tokens; confidential client credentials remain on the backend.
    against the **current** additive database, verify public pages/collector, and
    return to the new image. Keep the new tables. Do not run orphan-table pruning
    from the old image. Recheck collection and a verified backup.
-10. Only after all gates and SES approval, remove the pilot WAF restriction and
-    set mode public. Keep the 300-requests/IP/five-minute rate rule with backend
+10. Only after all gates and SES approval, set `pilot_mode=false`,
+    `signup_enabled=true`, and application mode public. Stop using the login-only
+    overlay when enabling signup. Keep the 300-requests/IP/five-minute rate rule with backend
     exclusion. Observe auth errors, WAF blocks and email delivery for at least
     one hour; review again the following day. Record results, not credentials.
 

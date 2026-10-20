@@ -25,8 +25,14 @@ variable "existing_parameter_arns" {
 variable "backend_ipv4" { type = string }
 variable "pilot_ipv4_cidrs" { type = set(string) }
 variable "pilot_mode" {
-  type    = bool
-  default = true
+  description = "Restrict all authentication to tester networks, including existing-account login."
+  type        = bool
+  default     = true
+}
+variable "signup_enabled" {
+  description = "Allow self-registration independently of network access. Disable for login-only access while SES is sandboxed."
+  type        = bool
+  default     = true
 }
 variable "passkeys_enabled" {
   type    = bool

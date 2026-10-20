@@ -8,4 +8,5 @@ backend_ipv4        = "192.0.2.1"
 pilot_ipv4_cidrs     = ["198.51.100.1/32"]
 app_log_group       = "/YOUR_APP/app"
 pilot_mode          = true
+signup_enabled      = true
 passkeys_enabled    = false
