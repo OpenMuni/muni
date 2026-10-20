@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>Muni · <%= @water_region ? 'Charles River' : @hall&.name || 'muni.fyi' %></title>
+  <title>OpenMuni · <%= @water_region ? 'Charles River' : (@mobility_region ? 'MBTA Subway' : (@hall&.name || 'muni.fyi')) %></title>
   <% asset_version = [File.mtime(File.join(settings.public_folder, 'css/muni.css')).to_i,
                       File.mtime(File.join(settings.public_folder, 'js/muni.js')).to_i].max %>
   <link rel="preconnect" href="https://unpkg.com">
@@ -26,6 +26,7 @@
     window.MUNI_BASEMAP_ERROR = <%= @basemap_error.to_json %>;
     window.MUNI_QUERY_LIMIT = <%= Muni::View::DEFAULT_QUERY_LIMIT %>;
     window.MUNI_DISPLAY = <%= Muni::Display.contract.to_json %>;
+    window.MUNI_HALL = <%= (@hall&.slug || 'cambridge').to_json %>;
   </script>
 </head>
 <body>

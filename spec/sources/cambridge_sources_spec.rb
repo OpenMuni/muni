@@ -373,6 +373,7 @@ RSpec.describe Cambridge do
           cambridge/digest
           cambridge/meetings_summary
           cambridge/primegov_meeting_records
+          cambridge/service_request_lifecycle
         ]
       )
       expect(Muni::Registry.beat('cambridge/primegov_meetings').every_seconds).to eq(3_600)

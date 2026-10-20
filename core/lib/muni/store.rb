@@ -3,6 +3,8 @@ require 'json'
 require 'fileutils'
 require 'time'
 require 'tempfile'
+require 'muni/service_request_map'
+require 'muni/efficiency_indexes'
 
 module Muni
   # rubocop:disable-next Metrics/ModuleLength
@@ -12,6 +14,7 @@ module Muni
     BACKUP_WEEKLY_RETENTION = 4
     OPERATIONAL_TABLES = %i[
       analytics_results
+      service_request_map_points efficiency_index_changes
       beats_log
       geo_layers
       meta
@@ -71,6 +74,8 @@ module Muni
           ensure_feature_tables!
           Muni::Registry.records.each_value { |klass| ensure_record_table!(klass) }
           Muni::Water::Storage.ensure_tables!
+          Muni::ServiceRequestMap.ensure_schema!
+          Muni::EfficiencyIndexes.ensure_sort_column!(db)
         end
       end
 
@@ -151,6 +156,9 @@ module Muni
 
       def ensure_service_request_indexes!(table, schema)
         cols = schema.column_names
+        if cols.include?(:hall) && cols.include?(:opened_at) && cols.include?(:status)
+          add_record_index(table, %i[hall opened_at status])
+        end
         add_record_index(table, %i[hall updated_at]) if cols.include?(:hall) && cols.include?(:updated_at)
         add_record_index(table, %i[hall closed_at]) if cols.include?(:hall) && cols.include?(:closed_at)
         add_record_index(table, %i[hall status]) if cols.include?(:hall) && cols.include?(:status)
@@ -162,7 +170,8 @@ module Muni
 
         desired_index = :"#{table}_#{columns.join('_')}_index"
         existing_indexes = db.fetch('PRAGMA index_list(?)', table.to_s).map { |row| row[:name].to_sym }
-        return if existing_indexes.include?(desired_index)
+        return if Muni::EfficiencyIndexes.equivalent?(db, table, columns)
+        raise "Index definition conflicts with #{desired_index}" if existing_indexes.include?(desired_index)
 
         db.alter_table(table) do
           add_index columns, name: desired_index, if_not_exists: true
@@ -316,6 +325,39 @@ module Muni
           end
           persisted
         end
+      end
+
+      # Source records, derived points, and checkpoint commit as one unit.
+      def persist_lifecycle_batch(records, key:, expected:, checkpoint:, missing: [])
+        accepted = []
+        with_writer do
+          db.transaction do
+            actual = db[:meta].where(key: key).get(:value)
+            raise 'lifecycle checkpoint changed concurrently' unless actual == expected
+
+            records.each do |record|
+              schema = record.class.schema_def
+              row = serialize_attrs(record.to_h, schema)
+              validate_hall_scope!(schema, row)
+              accepted << record if upsert_row(db[:service_requests], %i[hall external_id], row)
+            end
+            now = Time.now.utc
+            missing.each do |old|
+              # Missing is a verification result, never a closure or deletion.
+              db[:service_requests].where(old.slice(:hall, :external_id, :status, :updated_at, :collected_at))
+                                   .update(lifecycle_source_state: 'missing', lifecycle_checked_at: now)
+            end
+            values = { key => JSON.generate(checkpoint) }
+            (records.map(&:hall) + missing.map { |row| row[:hall] }).uniq.each do |hall|
+              values["changed_at:#{hall}/service_requests"] = now.iso8601(6)
+            end
+            values.each do |name, value|
+              attrs = { key: name, value: value, updated_at: now }
+              db[:meta].insert_conflict(target: :key, update: attrs.except(:key)).insert(attrs)
+            end
+          end
+        end
+        accepted.length
       end
 
       # +since+ filters on the record's primary time column when one exists;
@@ -509,7 +551,13 @@ module Muni
         out = {}
         schema.columns.each do |c|
           val = attrs[c.name]
-          next if val.nil?
+          if val.nil?
+            # Explicit null lifecycle fields are meaningful (e.g. a reopened
+            # request clears its previous closure date). Other attributes and
+            # datasets retain their existing sparse-update semantics.
+            out[c.name] = nil if nullable_lifecycle_field?(schema, c.name) && attrs.key?(c.name)
+            next
+          end
 
           out[c.name] = case c.type
                         when :time  then val.is_a?(Time) ? val.utc : Time.parse(val.to_s).utc
@@ -522,7 +570,13 @@ module Muni
         out
       end
 
+      def nullable_lifecycle_field?(schema, name)
+        schema == Muni::Records::ServiceRequest.schema_def && %i[status opened_at closed_at location].include?(name)
+      end
+
       def stale_timestamped_update?(dataset, primary_key, row)
+        return stale_service_request?(dataset, primary_key, row) if dataset.first_source_table == :service_requests
+
         incoming = time_or_nil(row[:updated_at])
         key = Array(primary_key).to_h { |column| [column, row[column]] }
         return false unless incoming && key.values.all?
@@ -530,6 +584,77 @@ module Muni
         current = dataset.where(key).select(:updated_at).first
         current_time = time_or_nil(current && current[:updated_at])
         current_time && current_time > incoming
+      end
+
+      # rubocop:disable-next Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+      def stale_service_request?(dataset, primary_key, row)
+        key = Array(primary_key).to_h { |column| [column, row[column]] }
+        current = dataset.where(key).first
+        return false unless current
+
+        if row[:hall] == 'boston' && current[:source_revision_at] && !row[:source_revision_at]
+          return true # unversioned discovery cannot undo a reconciled snapshot
+        end
+
+        incoming, previous = lifecycle_versions(row, current)
+        return true if unresolved_closure_replay?(current, row, incoming)
+        return true if previous && (!incoming || incoming < previous)
+        return true if incoming == previous && historical_closure_replay?(current, row, incoming)
+        return false if corroborated_source_reopening?(current, row, incoming)
+
+        stale_reopening?(current, row, incoming, previous)
+      end
+
+      def stale_reopening?(current, row, incoming, previous)
+        terminal_request?(current) && !terminal_request?(row) && (!incoming || !previous || incoming <= previous)
+      end
+
+      def unresolved_closure_replay?(current, row, incoming)
+        return false unless current[:lifecycle_source_state] == 'uncertain' && !terminal_request?(row)
+
+        evidence = current[:lifecycle_evidence]
+        evidence = JSON.parse(evidence) if evidence.is_a?(String)
+        return false unless evidence && evidence['unversioned_closure']
+
+        observed = time_or_nil(current[:lifecycle_checked_at])
+        !incoming || !observed || incoming <= observed
+      end
+
+      def lifecycle_versions(row, current)
+        incoming = time_or_nil(row[:updated_at]) || time_or_nil(row[:closed_at])
+        previous = time_or_nil(current[:updated_at]) || time_or_nil(current[:closed_at])
+        revision = time_or_nil(row[:source_revision_at])
+        old_revision = time_or_nil(current[:source_revision_at])
+        if row[:hall] == 'boston' && revision
+          # CKAN exposes snapshot revisions, not per-ticket modification times.
+          unversioned = terminal_request?(current) ? time_or_nil(current[:collected_at]) : previous
+          previous = old_revision || unversioned || previous
+          incoming = revision
+        end
+        [incoming, previous]
+      end
+
+      def terminal_request?(attrs)
+        attrs[:closed_at] || Muni::ServiceRequestPolicy::CLOSED_STATUSES.include?(attrs[:status].to_s.strip.downcase)
+      end
+
+      def reopening_evidence?(attrs)
+        evidence = attrs[:lifecycle_evidence]
+        evidence = JSON.parse(evidence) if evidence.is_a?(String)
+        evidence && evidence['confirmed_reopened']
+      end
+
+      def historical_closure_replay?(current, row, incoming)
+        # A delayed export can still carry the historical closure date.
+        reopening_evidence?(current) && incoming && !current[:closed_at] && row[:closed_at] &&
+          time_or_nil(row[:closed_at]) < incoming &&
+          Muni::ServiceRequestPolicy::ACTIVE_STATUSES.include?(row[:status].to_s.downcase)
+      end
+
+      def corroborated_source_reopening?(current, row, incoming)
+        reopening_evidence?(row) && incoming && current[:closed_at] &&
+          Muni::ServiceRequestPolicy::ACTIVE_STATUSES.include?(current[:status].to_s.downcase) &&
+          incoming > time_or_nil(current[:closed_at])
       end
 
       def source_record_class(source_class)
@@ -556,11 +681,50 @@ module Muni
       # a predicate suffix would misleadingly imply a read-only query.
       # rubocop:disable-next Naming/PredicateMethod
       def upsert_row(dataset, primary_key, row)
-        return false if stale_timestamped_update?(dataset, primary_key, row)
+        if stale_timestamped_update?(dataset, primary_key, row)
+          quarantine_unversioned_closure(dataset, primary_key, row)
+          return false
+        end
 
         keys = Array(primary_key)
-        dataset.insert_conflict(target: keys, update: row.except(*keys)).insert(row)
+        if dataset.first_source_table == :service_requests
+          current = dataset.where(row.slice(*keys)).first
+          # Keep the last source evidence when a faster discovery feed omits it.
+          row[:lifecycle_evidence] ||= current && current[:lifecycle_evidence]
+          if row.key?(:status)
+            status = row[:status].to_s.strip.downcase
+            row[:lifecycle_source_state] = if row[:closed_at] || Muni::ServiceRequestPolicy::CLOSED_STATUSES.include?(status)
+                                             'closed'
+                                           elsif Muni::ServiceRequestPolicy::ACTIVE_STATUSES.include?(status)
+                                             'active'
+                                           else
+                                             'uncertain'
+                                           end
+            row[:lifecycle_checked_at] = Time.now.utc
+          end
+        end
+        db.transaction do
+          dataset.insert_conflict(target: keys, update: row.except(*keys)).insert(row)
+          if dataset.first_source_table == :service_requests && db.table_exists?(Muni::ServiceRequestMap::TABLE)
+            Muni::ServiceRequestMap.persist(current.to_h.merge(row))
+          end
+        end
         true
+      end
+
+      def quarantine_unversioned_closure(dataset, primary_key, row)
+        return unless dataset.first_source_table == :service_requests && row[:lifecycle_evidence]
+        return unless terminal_request?(row)
+        return if row[:updated_at] || row[:closed_at] || row[:source_revision_at]
+
+        # Closure is authoritative but its ordering against a stored reopening
+        # is unknown. Preserve the lifecycle; do not advertise it as open.
+        evidence = row[:lifecycle_evidence]
+        evidence = JSON.parse(evidence) if evidence.is_a?(String)
+        evidence = JSON.generate(evidence.merge('unversioned_closure' => true))
+        dataset.where(row.slice(*Array(primary_key))).update(lifecycle_source_state: 'uncertain',
+                                                             lifecycle_checked_at:   Time.now.utc,
+                                                             lifecycle_evidence:     evidence)
       end
 
       def hydrate(klass, row, schema)
@@ -682,7 +846,7 @@ module Muni
       def perform_maintenance!(now: Time.now.utc)
         return unless maintenance_enabled?
 
-        backup!(now: now) unless meta('maintenance:last_backup') == now.strftime('%Y-%m-%d')
+        backup!(now: now) if backup_mode == 'local' && meta('maintenance:last_backup') != now.strftime('%Y-%m-%d')
         week = now.strftime('%G-W%V')
         return unless now.wday.zero? && meta('maintenance:last_optimize') != week
 
@@ -772,6 +936,13 @@ module Muni
       def maintenance_enabled?
         default = ENV['RACK_ENV'].to_s == 'production' ? '1' : '0'
         ENV.fetch('MUNI_MAINTENANCE_ENABLED', default) == '1'
+      end
+
+      def backup_mode
+        mode = ENV.fetch('MUNI_BACKUP_MODE', 'local')
+        raise ArgumentError, 'Invalid backup mode' unless %w[local external disabled].include?(mode)
+
+        mode
       end
 
       def time_column(klass_or_schema, preferred: nil)

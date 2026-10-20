@@ -1,4 +1,4 @@
-<% [['metrics', 'Metrics', 'dashboard'], ['map', 'Map', 'waves'], ['records', 'Records', 'table'], ['datasets', 'Datasets', 'database']].each do |id, label, icon| %>
+<% [['metrics', 'Metrics', 'dashboard'], ['map', 'Map', 'map'], ['records', 'Records', 'table'], ['datasets', 'Datasets', 'database']].each do |id, label, icon| %>
   <a class="rail__btn rail__btn--link<%= ' is-active' if @water_view == id %>"
      :class="{ 'is-active': view === '<%= id %>' }"
      href="/water/charles?view=<%= id %>" :href="viewUrl('<%= id %>')"

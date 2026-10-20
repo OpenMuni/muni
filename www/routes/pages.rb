@@ -99,6 +99,22 @@ module Muni
           erb :meetings, layout: :layout
         end
 
+        get '/transit' do
+          redirect '/mobility/subway', 301
+        end
+
+        get '/transit/subway' do
+          redirect '/mobility/subway', 301
+        end
+
+        get '/mobility/subway' do
+          @hall = page_hall!
+          response.set_cookie('hall', value: @hall.slug, path: '/', http_only: false)
+          @mobility_region = true
+          configure_map!
+          erb :subway, layout: :layout
+        end
+
         get '/about' do
           @hall = page_hall!
           response.set_cookie('hall', value: @hall.slug, path: '/', http_only: false)

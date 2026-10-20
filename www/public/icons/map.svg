@@ -1,4 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="map">
-  <rect x="2" y="2" width="20" height="20" rx="5" fill="none" stroke="currentColor" stroke-width="1.7"/>
-  <text x="12" y="15.5" text-anchor="middle" fill="currentColor" font-family="system-ui, sans-serif" font-size="8" font-weight="700">M</text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4.5 9.5 2.5 3 5.5v16l6.5-3 5 2 6.5-3v-16l-6.5 3Z"/><path d="M9.5 2.5v16"/><path d="M14.5 4.5v16"/></svg>

@@ -1,17 +1,23 @@
-<% water_region = @water_region == true %>
+<%
+  water_region = @water_region == true
+  regional = water_region
+%>
 <div class="brand">
-  <a class="brand__word brand__home" href="<%= water_region ? '/water/charles' : "/?hall=#{@hall.slug}" %>" aria-label="Muni home">Muni</a>
+  <a class="brand__home" href="<%= regional ? '/' : "/?hall=#{@hall.slug}" %>" aria-label="OpenMuni home">
+    <img class="brand__logo" src="/icons/openmuni-logo.png" alt="" width="23" height="28">
+    <span class="brand__word">OpenMuni</span>
+  </a>
   <form class="municipality-selector" method="get" action="/"
         data-selected="<%= water_region ? 'Charles River' : Rack::Utils.escape_html(@hall.name) %>">
-    <select name="hall" aria-label="<%= water_region ? 'Region' : 'Municipality' %>"
-            onchange="if (this.value === 'charles') { window.location.assign('/water/charles'); } else { this.form.requestSubmit(); }">
+    <select name="hall" aria-label="<%= regional ? 'Region' : 'Municipality' %>"
+            onchange="this.form.requestSubmit()">
+      <% if water_region %>
+        <option value="" selected disabled hidden>Charles River</option>
+      <% end %>
       <% Muni::Hall.all.select(&:public?).sort_by(&:name).each do |hall| %>
-        <option value="<%= Rack::Utils.escape_html(hall.slug) %>"<%= ' selected' if !water_region && hall.slug == @hall.slug %>>
+        <option value="<%= Rack::Utils.escape_html(hall.slug) %>"<%= ' selected' if !regional && hall.slug == @hall.slug %>>
           <%= Rack::Utils.escape_html(hall.name) %>
         </option>
-      <% end %>
-      <% if Muni::Water.enabled? %>
-        <option value="charles"<%= ' selected' if water_region %>>Charles River</option>
       <% end %>
     </select>
   </form>

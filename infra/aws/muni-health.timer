@@ -1,0 +1,10 @@
+[Unit]
+Description=Schedule Muni health
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=1min
+Unit=muni-health.service
+
+[Install]
+WantedBy=timers.target

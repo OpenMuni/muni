@@ -1,12 +1,54 @@
 require 'sinatra/base'
 require 'json'
 require 'muni'
+require 'muni/public_response_cache'
 
 module Muni
   module Www
     module Routes
       class API < Sinatra::Base
+        PUBLIC_CACHE = Muni::PublicResponseCache.new
+
         helpers HallResolution
+        helpers do
+          def cached_public_json
+            headers 'Cache-Control' => 'public, max-age=0, must-revalidate'
+            # A cached map can cross a rolling age boundary without any write.
+            # SQL is bounded by the report-date index; evaluate it at request time.
+            return JSON.generate(yield) if request.path_info.end_with?('/map') || params['cell']
+
+            changes = %w[boston cambridge].map { |hall| Muni::Store.meta("changed_at:#{hall}/service_requests") }
+            key = [Muni::Config.db_path, '311-map-v2', request.path_info, params.sort, changes].to_json
+            PUBLIC_CACHE.fetch(key) { JSON.generate(yield) }
+          end
+
+          def service_request_page(sources: nil, compact: true, maximum: 200, metadata: true)
+            query = Muni::Data::Query.new(params).service_request_query(sources: sources)
+            query.page(compact: compact, maximum: maximum, metadata: metadata)
+          end
+
+          def service_request_array(sources: nil, metadata: true)
+            page = JSON.parse(cached_public_json do
+              service_request_page(sources: sources, compact: false, maximum: 500, metadata: metadata)
+            end)
+            if page['next_cursor']
+              query = Rack::Utils.build_query(request.GET.merge('cursor' => page['next_cursor']))
+              headers 'Link' => "<#{request.path_info}?#{query}>; rel=\"next\""
+            end
+            JSON.generate(page.fetch('items'))
+          end
+        end
+
+        error Muni::ServiceRequestQuery::Invalid do
+          status 400
+          JSON.generate(error: env['sinatra.error'].message)
+        end
+
+        error Muni::ServiceRequestMap::Incomplete do
+          status 503
+          headers 'Retry-After' => '30'
+          JSON.generate(error: 'map projection is incomplete')
+        end
         set :host_authorization, { permitted_hosts: [] }
 
         before do
@@ -84,16 +126,30 @@ module Muni
           halt 400, JSON.dump(error: e.message)
         end
 
+        get '/api/category/service_requests/page' do
+          cached_public_json { service_request_page }
+        end
+
+        get '/api/category/service_requests/map' do
+          cached_public_json { Muni::Data::Query.new(params).service_request_query.map }
+        end
+
         get '/api/category/:slug/records' do
+          next service_request_array if params[:slug] == 'service_requests'
+
           JSON.dump(Muni::Data.category_records(slug: params[:slug], hall: params[:hall], params: params))
         rescue Muni::Data::NotFound => e
           halt 404, JSON.dump(error: e.message)
+        rescue Muni::Data::Error => e
+          halt 400, JSON.dump(error: e.message)
         end
 
         get '/api/category/:slug/geo' do
           JSON.dump(Muni::Data.category_geo(slug: params[:slug], hall: params[:hall], params: params))
         rescue Muni::Data::NotFound => e
           halt 404, JSON.dump(error: e.message)
+        rescue Muni::Data::Error => e
+          halt 400, JSON.dump(error: e.message)
         end
 
         get '/api/category/:slug/facets' do
@@ -103,6 +159,10 @@ module Muni
         end
 
         get '/api/records/:scope/:name' do
+          if params[:name] == 'service_requests' && Muni::Registry.source("#{params[:scope]}/#{params[:name]}")
+            next service_request_array(sources: ["#{params[:scope]}/#{params[:name]}"], metadata: false)
+          end
+
           JSON.dump(Muni::Data.source_records(scope: params[:scope], name: params[:name], params: params))
         rescue Muni::Data::NotFound => e
           halt 404, JSON.dump(error: e.message)
@@ -141,6 +201,28 @@ module Muni
           )
         rescue Muni::Data::NotFound => e
           halt 404, JSON.dump(error: e.message)
+        end
+
+        get '/api/mobility/subway/stations' do
+          subway_response { Muni::Transit.stations }
+        end
+
+        get '/api/mobility/subway/vehicles' do
+          subway_response { Muni::Transit.vehicles }
+        end
+
+        get '/api/mobility/subway/predictions/:stop_id' do
+          subway_response { Muni::Transit.predictions(stop_id: params[:stop_id]) }
+        end
+
+        get '/api/mobility/subway/alerts' do
+          subway_response { Muni::Transit.alerts }
+        end
+
+        def subway_response
+          JSON.dump(yield)
+        rescue Muni::Transit::Client::Error => e
+          halt e.status, JSON.dump(error: e.message, data: [], fetched_at: nil)
         end
       end
     end

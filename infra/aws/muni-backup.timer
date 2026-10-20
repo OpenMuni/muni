@@ -1,0 +1,10 @@
+[Unit]
+Description=Schedule Muni backup
+
+[Timer]
+OnCalendar=*-*-* 06:30:00 UTC
+Persistent=true
+Unit=muni-backup.service
+
+[Install]
+WantedBy=timers.target

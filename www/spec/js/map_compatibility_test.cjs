@@ -5,7 +5,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 function fixture() {
-  const context = {window: {}, URLSearchParams};
+  const context = {window: {}, URLSearchParams, AbortController, fetch: () => {}};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../public/js/muni.js'), 'utf8'), context);
   return {context, shell: context.window.muniShell({hall: 'cambridge', category: 'service_requests'})};
 }
@@ -29,7 +29,7 @@ test('record layers update after style readiness while base tiles are still load
   const {context, shell} = fixture();
   const data = {type: 'FeatureCollection', features: [{type: 'Feature', properties: {id: 'synthetic'}}]};
   context.fetch = async () => ({ok: true, json: async () => data});
-  shell.map = {isStyleLoaded: () => false, once: () => assert.fail('Must not wait for another load event')};
+  shell.map = {isStyleLoaded: () => false, getBounds: () => ({getWest:()=>-71.2,getSouth:()=>42.3,getEast:()=>-71,getNorth:()=>42.5}), once: () => assert.fail('Must not wait for another load event')};
   shell._mapStyleLoaded = true;
   shell.geoQueryParams = () => new URLSearchParams();
   shell.enrichGeojson = value => value;
@@ -44,7 +44,7 @@ test('pending style data is not applied after the selected category changes', as
   const {context, shell} = fixture();
   context.fetch = async () => ({ok: true, json: async () => ({features: []})});
   let onStyle;
-  shell.map = {isStyleLoaded: () => false, once: (event, callback) => {
+  shell.map = {isStyleLoaded: () => false, getBounds: () => ({getWest:()=>-71.2,getSouth:()=>42.3,getEast:()=>-71,getNorth:()=>42.5}), once: (event, callback) => {
     assert.equal(event, 'style.load');
     onStyle = callback;
   }};
@@ -80,6 +80,7 @@ test('cluster labels use the basemap font or the available Protomaps fallback', 
     [[{layout: {'text-font': ['Roboto Regular']}}], ['Roboto Regular']]
   ]) {
     const {shell} = fixture();
+    shell.category = 'permits';
     const layers = [];
     shell._mapStyleLoaded = true;
     shell.map = {
@@ -92,4 +93,49 @@ test('cluster labels use the basemap font or the available Protomaps fallback', 
     assert.ok(label, 'A cluster label layer must be installed');
     assert.deepEqual(Array.from(label.layout['text-font']), expected);
   }
+});
+
+test('311 uses individual signals and scopes the list to map bounds', () => {
+  const {shell} = fixture();
+  shell.map = {getBounds: () => ({getWest: () => -71.2, getSouth: () => 42.3,
+    getEast: () => -71.0, getNorth: () => 42.5})};
+  shell.mapBbox = '-71.2,42.3,-71,42.5';
+  assert.equal(shell.useCluster({features: Array(10000)}), false);
+  assert.equal(shell.queryParams().get('map_view'), '1');
+  assert.equal(shell.queryParams().get('bbox'), '-71.2,42.3,-71,42.5');
+  assert.match(shell.geoRequestURL(), /bbox=-71\.200000%2C42\.300000%2C-71\.000000%2C42\.500000/);
+  const colors = shell.mapPointColor();
+  assert.deepEqual(Array.from(colors).filter(value => typeof value === 'string' &&
+    ['acknowledged', 'open', 'no_recent_update', 'other_active'].includes(value)),
+  ['open', 'acknowledged', 'no_recent_update', 'other_active']);
+  shell.listScope = 'history';
+  assert.equal(shell.queryParams().get('history_view'), '1');
+  assert.equal(shell.queryParams().has('map_view'), false);
+});
+
+test('overlapping 311 dots offer each request for selection', async () => {
+  const {shell} = fixture();
+  const first = {properties: {hall: 'cambridge', external_id: '1', case_type: 'Pothole'}};
+  const second = {properties: {hall: 'cambridge', external_id: '2', case_type: 'Street light'}};
+  shell.map = {queryRenderedFeatures: () => [first, second]};
+  await shell.onMapPointClick({point: {x: 20, y: 20}, features: [first]});
+  assert.deepEqual(Array.from(shell.nearbyRequests, f => f.external_id), ['1', '2']);
+});
+
+test('311 history loads older rows without changing the map scope', async () => {
+  const {context, shell} = fixture();
+  shell.listScope = 'history';
+  shell.filters = {time_range: 'all'};
+  shell.historyHasMore = true;
+  shell.rows = [{external_id: 'first'}];
+  let requested;
+  context.fetch = async url => {
+    requested = url;
+    return {ok: true, json: async () => [{external_id: 'older'}]};
+  };
+  await shell.loadMoreHistory();
+  assert.match(requested, /history_view=1/);
+  assert.match(requested, /offset=1/);
+  assert.deepEqual(Array.from(shell.rows, row => row.external_id), ['first', 'older']);
+  assert.equal(shell.historyHasMore, false);
 });

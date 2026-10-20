@@ -68,6 +68,7 @@ The launch collector commands are intentionally limited to:
 - `muni-get-trees`
 - `muni-get-parks`
 - `muni-get-food-trucks`
+- `muni-get-transit`
 
 `./dev` runs the local loop: migrate SQLite, seed every source for both Cambridge
 and Boston from the shared Beat catalog, compute each Hall's analytics and
@@ -95,6 +96,9 @@ muni-get-crashes cambridge,ma --persist --json -y
 muni-get-trees cambridge,ma --persist --json -y
 muni-get-parks cambridge,ma --persist --json -y
 muni-get-food-trucks cambridge,ma --persist --json -y
+muni-get-transit --json
+muni-get-transit --station=place-harsq
+muni-get-transit --vehicles --json
 
 # Zone: positional `cambridge,ma`, `--zone` / `--city`, or MUNI_ZONE=cambridge.
 # Add only these collector commands to cron with `--persist`.
@@ -132,7 +136,8 @@ source list and future-source criteria.
 You can run Muni locally with `./setup` and `./dev` without an AWS account.
 For an independent deployment, use your own app name, domain, persistent SQLite
 volume, credentials, and map provider. Check each data source's terms and rate
-limits. Start with [self-hosting guidance](docs/SELF_HOSTING.md).
+limits. Start with [self-hosting guidance](docs/SELF_HOSTING.md) and the
+[reusable AWS Terraform example](infra/aws/README.md).
 
 ## License
 
@@ -151,6 +156,14 @@ data, and hard-to-find source records are useful contributions. Start with
 and [GOVERNANCE.md](GOVERNANCE.md) for how community proposals are reviewed.
 See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations.
 Report security concerns privately using [SECURITY.md](SECURITY.md). The [public release gate](docs/PUBLIC_RELEASE_GATE.md) records decisions pending before repository visibility changes.
+
+## MBTA Subway
+
+The regional Train app at `/mobility/subway` shows MBTA Red, Orange, Blue, Green B/C/D/E, and Mattapan stations, live vehicles, station arrivals, and service alerts. Cambridge and Boston share this page. `/transit` and `/transit/subway` redirect to it.
+
+Muni fetches canonical parent stations and route membership from the MBTA V3 API, follows pagination, and serves same-origin endpoints at `/api/mobility/subway/stations`, `/vehicles`, `/predictions/:stop_id`, and `/alerts`. Set `MBTA_API_KEY` on the server for a higher request quota; the browser never receives the key. Responses include `fetched_at`, and unavailable upstream data is reported explicitly. No vehicles or arrival times are simulated.
+
+The map shows all subway routes. Select a station for arrivals and save it as your home station to restore it on your next visit. Station arrivals fill the left sidebar by default. The Safety icon opens service alerts, and the Train icon returns to arrivals. Small screens have a map/list toggle. The standalone CLI supports `muni-get-transit [--station ID | --vehicles | --alerts] [--json]`; the regional MCP server provides matching tools.
 
 ## Water Quality (optional)
 

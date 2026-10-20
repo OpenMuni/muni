@@ -1,4 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="parking">
-  <rect x="2" y="2" width="20" height="20" rx="5" fill="none" stroke="currentColor" stroke-width="1.7"/>
-  <text x="12" y="15.5" text-anchor="middle" fill="currentColor" font-family="system-ui, sans-serif" font-size="8" font-weight="700">P</text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 21V4h6a5 5 0 0 1 0 10H7"/><path d="M7 14h6"/></svg>

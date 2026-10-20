@@ -35,8 +35,9 @@ and backup access it needs. Do not commit a populated environment file.
 
 ## Release boundary
 
-This public repository contains the application image and its process entry
-point. Production infrastructure definitions, account identifiers, DNS
-changes, cutover history, secret values, and rollback instructions remain
-outside the public source release. See [self-hosting](SELF_HOSTING.md) for the
-local process and storage assumptions.
+This public repository contains the application image, its process entry point,
+and a reusable [AWS self-hosting example](../infra/aws/README.md) with Terraform.
+The example uses operator-supplied account, certificate, domain, and storage
+values. Production account configuration, DNS changes, cutover history,
+secret values, and recovery artifacts remain outside the public source release.
+See [self-hosting](SELF_HOSTING.md) for the local process and storage assumptions.

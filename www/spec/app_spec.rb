@@ -8,7 +8,7 @@ RSpec.describe Muni::Www::App do
   before { Muni::Store.ensure_tables! }
 
   def rail_app_titles(body)
-    body.scan(/title="(Digest|Trends|Meetings)"/).flatten.first(4)
+    body.scan(/title="(Digest|Trends|Meetings|Train)"/).flatten.first(4)
   end
 
   def upsert_stale_service_request(now)
@@ -54,7 +54,7 @@ RSpec.describe Muni::Www::App do
   it 'serves the HTML shell at /' do
     get '/'
     expect(last_response).to be_ok
-    expect(last_response.body).to include('Muni')
+    expect(last_response.body).to include('OpenMuni', '/icons/openmuni-logo.png')
     expect(last_response.body).not_to include('/auth/', '/ask?')
   end
 
@@ -98,7 +98,8 @@ RSpec.describe Muni::Www::App do
     get '/?hall=boston'
     expect(last_response).to be_ok
     expect(last_response.body).to include('Boston, MA')
-    expect(last_response.body).not_to include('title="Meetings"')
+    expect(last_response.body).not_to include('title="Meetings"', 'value="subway"')
+    expect(last_response.body).to include('title="Train"', 'href="/mobility/subway?hall=boston"')
 
     header 'Host', 'boston.muni.fyi'
     get '/api/categories'
@@ -183,11 +184,12 @@ RSpec.describe Muni::Www::App do
   it 'uses Digest and Trends links in shell entry points' do
     get '/?hall=cambridge'
     expect(last_response.body).to include('/digest?hall=cambridge')
-    expect(last_response.body).to include('/trends?hall=cambridge')
+    expect(last_response.body).to include('/trends?hall=cambridge', '/mobility/subway?hall=cambridge')
+    expect(last_response.body).not_to include('value="subway"')
   end
 
   it 'keeps the app rail order stable across app pages' do
-    expected = %w[Trends Digest Meetings]
+    expected = %w[Trends Digest Meetings Train]
 
     ['/?hall=cambridge', '/digest?hall=cambridge',
      '/trends?hall=cambridge', '/meetings?hall=cambridge'].each do |path|

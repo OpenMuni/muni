@@ -21,8 +21,10 @@ restore drill. Configure your own domain, TLS, monitoring, secrets, and map
 provider, and verify the attribution and terms of every source you enable.
 The hosted Muni.fyi service uses AWS. The included `Dockerfile` and `bin/start`
 show the process layout; [AWS hosting](AWS_HOSTING.md) describes the public
-architecture. Bring your own deployment configuration, app name, domain,
-storage, and credentials.
+architecture, and [the AWS example](../infra/aws/README.md) provides reusable
+Terraform. Bring your own deployment configuration, app name, domain, storage,
+and credentials. For the bounded 311 list and map projection, run
+`bundle exec ruby bin/prepare-efficiency` before serving the updated app.
 
 Connected sign-in, resident report submission, and the operator view are not
 part of this source release. Restore them only after an independent identity
