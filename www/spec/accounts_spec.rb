@@ -148,6 +148,33 @@ RSpec.describe 'Cognito account routes' do
     expect(last_response.status).to eq(400)
   end
 
+  it 'accepts privacy-preserving same-origin browser forms only with a valid CSRF token' do
+    row = sign_in
+    headers = { 'HTTP_ORIGIN' => 'null', 'HTTP_SEC_FETCH_SITE' => 'same-origin' }
+    post 'https://muni.example/account/preference', { hall: 'boston', csrf: 'forged' }, headers
+    expect(last_response.status).to eq(403)
+    post 'https://muni.example/account/preference', { hall: 'boston', csrf: row[:csrf] }, headers
+    expect(last_response.status).to eq(303)
+    expect(Muni::Accounts.account(row[:account_id])[:preferred_hall]).to eq('boston')
+    post 'https://muni.example/logout', { csrf: row[:csrf] }, headers
+    expect(last_response.location).to eq('https://auth.muni.example/logout')
+    expect(Muni::Store.db[:account_sessions].count).to eq(0)
+  end
+
+  it 'rejects opaque, missing, or foreign form origins without trustworthy same-origin metadata' do
+    row = sign_in
+    [nil, 'same-site', 'cross-site', 'none'].each do |site|
+      post 'https://muni.example/account/preference', { hall: 'boston', csrf: row[:csrf] },
+           'HTTP_ORIGIN' => 'null', 'HTTP_SEC_FETCH_SITE' => site
+      expect(last_response.status).to eq(403)
+    end
+    [nil, 'https://attacker.example'].each do |origin|
+      post 'https://muni.example/account/preference', { hall: 'boston', csrf: row[:csrf] },
+           'HTTP_ORIGIN' => origin, 'HTTP_SEC_FETCH_SITE' => 'same-origin'
+      expect(last_response.status).to eq(403)
+    end
+  end
+
   it 'ignores external return URLs' do
     start('/login?return_to=https://attacker.example')
     expect(last_response.location).not_to include('attacker.example')

@@ -111,7 +111,7 @@ module Muni
           # Logout must not depend on token refresh or provider availability.
           row = Muni::Accounts.session_record(sid)
           csrf!(row) if row
-          halt 403 unless request.env['HTTP_ORIGIN'] == auth.config.base_url
+          halt 403 unless same_origin_request?
           Muni::Accounts.remove_session(sid)
           clear_session
           begin
