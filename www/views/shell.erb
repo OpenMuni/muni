@@ -93,9 +93,8 @@
         <button type="button" :aria-pressed="listScope === 'map'" :class="{ 'is-active': listScope === 'map' }" @click="set311ListScope('map')">In map view</button>
         <button type="button" :aria-pressed="listScope === 'history'" :class="{ 'is-active': listScope === 'history' }" @click="set311ListScope('history')">All requests &amp; history</button>
       </div>
-      <div class="list-pane__context" x-show="category === 'service_requests'" x-cloak>
-        <span class="muted" role="status" x-show="listScope === 'map'" x-text="mapError ? 'Map requests unavailable' : geoFeatureCount === null ? 'Loading map requests…' : `${geoFeatureCount.toLocaleString()} open or active requests in view · reported in the last 30 days`"></span>
-        <span class="muted" x-show="listScope === 'history'">Citywide requests, including older and closed reports</span>
+      <div class="list-pane__context" x-show="category === 'service_requests' && listScope === 'history'" x-cloak>
+        <span class="muted">Citywide requests, including older and closed reports</span>
       </div>
       <p role="alert" x-show="listError" x-text="listError"></p>
       <p role="alert" x-show="detailError" x-text="detailError"></p>
