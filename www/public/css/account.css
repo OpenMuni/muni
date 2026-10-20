@@ -1,0 +1,11 @@
+:root { color-scheme: light dark; font: 17px/1.5 system-ui, sans-serif; }
+body { margin: 0; background: Canvas; color: CanvasText; }
+header, main { max-width: 42rem; margin: auto; padding: 1.25rem; }
+header { display: flex; justify-content: space-between; border-bottom: 1px solid GrayText; }
+section { margin-block: 2rem; padding-top: 1rem; border-top: 1px solid GrayText; }
+a { color: LinkText; }
+form { margin-block: 1rem; }
+button, select { font: inherit; padding: .55rem .8rem; margin: .25rem; }
+button { cursor: pointer; }
+.credential { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+:focus-visible { outline: 3px solid Highlight; outline-offset: 3px; }

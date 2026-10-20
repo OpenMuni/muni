@@ -1,0 +1,4 @@
+# Exact historical false positive: synthetic MUNI_LOG_PROBE_TOKEN in the proxy
+# redaction test. It has never been an authentication credential. Future values
+# and every other file/commit remain scanned normally.
+afee5f1a9da60984ad241c1e3012d437e3d9cb5c:.github/workflows/ci.yml:curl-auth-header:120

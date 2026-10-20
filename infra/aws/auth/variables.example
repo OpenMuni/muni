@@ -1,0 +1,11 @@
+domain              = "muni.example"
+auth_domain         = "auth.muni.example"
+app_origin          = "https://muni.example"
+alert_email         = "ops@example.test"
+instance_role_name  = "YOUR_EXISTING_INSTANCE_ROLE"
+existing_parameter_arns = []
+backend_ipv4        = "192.0.2.1"
+pilot_ipv4_cidrs     = ["198.51.100.1/32"]
+app_log_group       = "/YOUR_APP/app"
+pilot_mode          = true
+passkeys_enabled    = false

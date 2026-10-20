@@ -9,9 +9,10 @@ SQLite, and presents it through a web app and command-line tools. Cambridge,
 Massachusetts is the launch city; Boston and the Charles River region are also
 being developed. See [data and attribution](docs/DATA_AND_ATTRIBUTION.md) for
 the distinction between Muni's code and upstream data. The iOS app and image
-assets are withheld pending provenance review. Connected sign-in, Ask
-conversations, report submission, attestations, and the operator view are
-excluded until an independent identity system is ready.
+assets are withheld pending provenance review. Optional Cognito accounts support
+email/password and passkeys, with authentication disabled by default. See the
+[account operations guide](infra/aws/auth/README.md). Ask conversations, report
+submission, attestations, and the operator view remain excluded.
 
 Launch city: **Cambridge, MA**.
 

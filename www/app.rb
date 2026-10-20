@@ -12,6 +12,7 @@ require_relative 'routes/water'
 require_relative 'routes/stream'
 require_relative 'routes/pages'
 require_relative 'routes/tiles'
+require_relative 'routes/accounts'
 
 module Muni
   module Www
@@ -145,6 +146,7 @@ module Muni
         Muni::Store.ensure_tables!
       end
 
+      use Routes::Accounts
       use Routes::Tiles
       use Routes::WaterAPI
       use Routes::API
