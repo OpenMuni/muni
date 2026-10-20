@@ -81,7 +81,7 @@ resource "aws_cognito_user_pool_client" "web" {
   allowed_oauth_scopes                 = ["openid", "email", "aws.cognito.signin.user.admin"]
   supported_identity_providers         = ["COGNITO"]
   explicit_auth_flows                  = ["ALLOW_USER_AUTH"]
-  callback_urls                        = ["${var.app_origin}/auth/cognito/callback"]
+  callback_urls                        = ["${var.app_origin}/auth/cognito/callback", "${var.app_origin}/auth/passkeys/complete"]
   logout_urls                          = ["${var.app_origin}/auth/signed-out"]
   prevent_user_existence_errors        = "ENABLED"
   enable_token_revocation              = true

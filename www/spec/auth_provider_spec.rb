@@ -78,6 +78,14 @@ RSpec.describe Muni::Www::Auth::Provider do
     expect { vault.open(parts.join('.')) }.to raise_error(Muni::Www::Auth::Error)
   end
 
+  it 'uses a separate fixed return URL for hosted passkey enrollment, without requesting OAuth tokens' do
+    url = URI(provider.enrollment_url)
+    expect("#{url.scheme}://#{url.host}#{url.path}").to eq('https://auth.muni.example/passkeys/add')
+    expect(URI.decode_www_form(url.query).to_h).to eq(
+      'client_id' => 'client', 'redirect_uri' => 'https://muni.example/auth/passkeys/complete'
+    )
+  end
+
   it 'exchanges a code with the verifier and confidential client authentication' do
     response = tokens.merge('refresh_token' => 'first-refresh', 'expires_in' => 300, 'token_type' => 'Bearer')
     request = stub_request(:post, 'https://auth.muni.example/oauth2/token')

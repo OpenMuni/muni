@@ -36,7 +36,6 @@ module Muni
             provider.global_sign_out(tokens)
             return { recovery: true }
           end
-          provider.credentials(tokens) if transaction['purpose'] == 'enroll'
           sid = Accounts.create_session(account[:id], vault.seal(tokens), claims, previous: previous)
           raise Error, 'Session was revoked during sign-in' unless sid
 
@@ -47,9 +46,7 @@ module Muni
           if transaction['subject'] && transaction['subject'] != claims['sub']
             raise Error, 'Sign in with the same account to continue'
           end
-          if transaction['purpose'] != 'enroll' && claims['auth_time'] < Time.now.to_i - 300
-            raise Error, 'Please sign in again to continue'
-          end
+          raise Error, 'Please sign in again to continue' if claims['auth_time'] < Time.now.to_i - 300
 
           provider.verify_user(tokens, claims.fetch('sub'))
           account = Accounts.resolve(claims)
@@ -59,6 +56,33 @@ module Muni
           end
 
           account
+        end
+
+        def begin_enrollment(sid:, browser:)
+          row = session(sid)
+          raise Error, 'Please sign in again to continue' unless row && row[:auth_time] > Time.now.to_i - 300
+
+          transaction = { 'purpose' => 'enrollment_return', 'account_id' => row[:account_id],
+                          'subject' => row[:account][:subject], 'session_hash' => Accounts.digest(sid) }
+          # Hosted enrollment returns only result=success, not OAuth state or a code.
+          # The opaque cookie is a one-use, session-bound receipt, never an authentication result.
+          Accounts.start_transaction(browser, browser, vault.seal(transaction))
+          provider.enrollment_url
+        end
+
+        def complete_enrollment(sid:, browser:)
+          payload = Accounts.consume_transaction(browser, browser)
+          raise Error, 'This enrollment link expired. Please try again.' unless payload
+
+          transaction = vault.open(payload)
+          row = session(sid)
+          valid = row && transaction['purpose'] == 'enrollment_return' &&
+                  transaction['session_hash'] == Accounts.digest(sid) &&
+                  transaction['account_id'] == row[:account_id] && transaction['subject'] == row[:account][:subject]
+          raise Error, 'Enrollment session changed. Please sign in again.' unless valid
+
+          # Ignore the untrusted result query. Cognito's credential API is authoritative.
+          provider.credentials(row[:plaintext_tokens])
         end
 
         def session(sid)
