@@ -162,6 +162,20 @@ RSpec.describe 'Cognito account routes' do
     expect(last_response.body).not_to include('private-access-marker', 'private-refresh-marker')
   end
 
+  it 'allows form redirects only to this application and its configured Cognito origin' do
+    sign_in
+    get 'https://muni.example/account'
+    policy = last_response.headers['content-security-policy'].split(';').map(&:strip)
+    form_sources = policy.find { |directive| directive.start_with?('form-action ') }.split.drop(1)
+    expect(form_sources).to eq(["'self'", config.domain])
+
+    %w[/account/passkeys /logout].each do |path|
+      submit path
+      destination = URI(last_response.location)
+      expect(form_sources).to include("#{destination.scheme}://#{destination.host}")
+    end
+  end
+
   it 'removes only a credential listed for the authenticated user, including the last one' do
     sign_in
     allow(provider).to receive(:credentials).and_return([{ credential_id:            'owned',

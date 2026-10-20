@@ -25,7 +25,8 @@ module Muni
           headers 'Cache-Control' => 'no-store, private', 'Referrer-Policy' => 'no-referrer',
                   'X-Content-Type-Options' => 'nosniff', 'X-Frame-Options' => 'DENY',
                   'Content-Security-Policy' => "default-src 'none'; style-src 'self'; img-src 'self'; " \
-                                               "form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+                                               "form-action 'self' #{auth.config.domain}; " \
+                                               "base-uri 'none'; frame-ancestors 'none'"
           ensure_origin!
         end
 
