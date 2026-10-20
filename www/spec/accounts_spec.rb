@@ -148,6 +148,33 @@ RSpec.describe 'Cognito account routes' do
     expect(last_response.status).to eq(400)
   end
 
+  it 'accepts privacy-preserving same-origin browser forms only with a valid CSRF token' do
+    row = sign_in
+    headers = { 'HTTP_ORIGIN' => 'null', 'HTTP_SEC_FETCH_SITE' => 'same-origin' }
+    post 'https://muni.example/account/preference', { hall: 'boston', csrf: 'forged' }, headers
+    expect(last_response.status).to eq(403)
+    post 'https://muni.example/account/preference', { hall: 'boston', csrf: row[:csrf] }, headers
+    expect(last_response.status).to eq(303)
+    expect(Muni::Accounts.account(row[:account_id])[:preferred_hall]).to eq('boston')
+    post 'https://muni.example/logout', { csrf: row[:csrf] }, headers
+    expect(last_response.location).to eq('https://auth.muni.example/logout')
+    expect(Muni::Store.db[:account_sessions].count).to eq(0)
+  end
+
+  it 'rejects opaque, missing, or foreign form origins without trustworthy same-origin metadata' do
+    row = sign_in
+    [nil, 'same-site', 'cross-site', 'none'].each do |site|
+      post 'https://muni.example/account/preference', { hall: 'boston', csrf: row[:csrf] },
+           'HTTP_ORIGIN' => 'null', 'HTTP_SEC_FETCH_SITE' => site
+      expect(last_response.status).to eq(403)
+    end
+    [nil, 'https://attacker.example'].each do |origin|
+      post 'https://muni.example/account/preference', { hall: 'boston', csrf: row[:csrf] },
+           'HTTP_ORIGIN' => origin, 'HTTP_SEC_FETCH_SITE' => 'same-origin'
+      expect(last_response.status).to eq(403)
+    end
+  end
+
   it 'ignores external return URLs' do
     start('/login?return_to=https://attacker.example')
     expect(last_response.location).not_to include('attacker.example')
@@ -160,6 +187,20 @@ RSpec.describe 'Cognito account routes' do
     expect(last_response.headers['cache-control']).to include('no-store')
     expect(last_response.headers['content-security-policy']).to include("frame-ancestors 'none'")
     expect(last_response.body).not_to include('private-access-marker', 'private-refresh-marker')
+  end
+
+  it 'allows form redirects only to this application and its configured Cognito origin' do
+    sign_in
+    get 'https://muni.example/account'
+    policy = last_response.headers['content-security-policy'].split(';').map(&:strip)
+    form_sources = policy.find { |directive| directive.start_with?('form-action ') }.split.drop(1)
+    expect(form_sources).to eq(["'self'", config.domain])
+
+    %w[/account/passkeys /logout].each do |path|
+      submit path
+      destination = URI(last_response.location)
+      expect(form_sources).to include("#{destination.scheme}://#{destination.host}")
+    end
   end
 
   it 'removes only a credential listed for the authenticated user, including the last one' do

@@ -27,8 +27,11 @@ pilot; enable it only alongside the pool's `passkeys_enabled=true`.
   serialized in SQLite; provider calls never hold the database writer lock.
   A simultaneous request may receive a retryable 503 while refresh completes.
 - `/account` shows verified email, city preference, and account controls. All
-  account responses are private/no-store. Mutations require both CSRF token and
-  exact Origin; account requests require the configured HTTPS host. Configure
+  account responses are private/no-store. Mutations require a CSRF token and
+  the exact Origin, or `Origin: null` with browser Fetch Metadata reporting
+  `Sec-Fetch-Site: same-origin`. The latter supports form submissions under
+  `no-referrer`; missing metadata, sibling sites and foreign origins fail closed.
+  Account requests require the configured HTTPS host. Configure
   trusted proxies to match actual socket peers, not all private networks.
 - Passkey enrollment always starts with fresh, same-subject authentication and
   then Cognito's `/passkeys/add`. List/removal use the user's access token.

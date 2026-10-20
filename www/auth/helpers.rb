@@ -24,9 +24,18 @@ module Muni
 
         def csrf!(row = account_session)
           redirect '/login' unless row
-          valid = request.env['HTTP_ORIGIN'] == auth.config.base_url &&
+          valid = same_origin_request? &&
                   Rack::Utils.secure_compare(params['csrf'].to_s, row[:csrf])
           halt 403, 'Please reload the account page and try again.' unless valid
+        end
+
+        def same_origin_request?
+          origin = request.env['HTTP_ORIGIN']
+          return true if origin == auth.config.base_url
+
+          # no-referrer makes browser form POST origins opaque. Fetch Metadata
+          # still distinguishes this application from sibling or external sites.
+          origin == 'null' && request.env['HTTP_SEC_FETCH_SITE'] == 'same-origin'
         end
 
         def start_flow(purpose, path: '/oauth2/authorize', account: nil)
