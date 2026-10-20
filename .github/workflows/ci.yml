@@ -118,8 +118,9 @@ jobs:
             muni-security-check run --config /app/Caddyfile --adapter caddyfile
           trap 'docker logs muni-proxy-error; docker rm --force muni-proxy-error' EXIT
           curl --fail --retry 20 --retry-delay 1 --retry-all-errors http://127.0.0.1:19459/proxy-healthz
+          log_probe=MUNI_LOG_PROBE_TOKEN
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
-            -H 'Cookie: probe=MUNI_LOG_PROBE_COOKIE' -H 'Authorization: Bearer MUNI_LOG_PROBE_TOKEN' \
+            -H 'Cookie: probe=MUNI_LOG_PROBE_COOKIE' -H "Authorization: Bearer $log_probe" \
             'http://127.0.0.1:19459/auth/cognito/callback?code=MUNI_LOG_PROBE_CODE')" = 502
           ! docker logs muni-proxy-error 2>&1 | grep -q MUNI_LOG_PROBE
       - name: Scan fixable high and critical container vulnerabilities
