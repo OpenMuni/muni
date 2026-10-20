@@ -4,7 +4,7 @@ output "dns_validation_records" {
   }]
 }
 output "ses_dkim_records" {
-  value = [for token in aws_sesv2_email_identity.sender.dkim_signing_attributes[0].tokens : {
+  value = [for token in flatten([for signing in aws_sesv2_email_identity.sender.dkim_signing_attributes : signing.tokens]) : {
     type = "CNAME", name = "${token}._domainkey.${var.domain}", content = "${token}.dkim.amazonses.com"
   }]
 }

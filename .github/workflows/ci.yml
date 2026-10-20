@@ -37,6 +37,7 @@ jobs:
           terraform -chdir=infra/aws/auth fmt -check
           terraform -chdir=infra/aws/auth init -backend=false -lockfile=readonly
           terraform -chdir=infra/aws/auth validate
+          terraform -chdir=infra/aws/auth test -var-file=login-only.example
 
       - name: RSpec
         run: bin/test-all

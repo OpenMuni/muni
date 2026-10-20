@@ -27,6 +27,9 @@ resource "aws_cognito_user_pool" "accounts" {
   deletion_protection      = "ACTIVE"
   mfa_configuration        = "OFF"
   username_configuration { case_sensitive = false }
+  admin_create_user_config {
+    allow_admin_create_user_only = !var.signup_enabled
+  }
   user_attribute_update_settings { attributes_require_verification_before_update = ["email"] }
   account_recovery_setting {
     recovery_mechanism {

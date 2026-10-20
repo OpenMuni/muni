@@ -1,0 +1,4 @@
+# Apply AFTER the private production var-file so an old pilot_mode=true cannot
+# leave publicly advertised login restricted to tester IP addresses.
+pilot_mode     = false
+signup_enabled = false

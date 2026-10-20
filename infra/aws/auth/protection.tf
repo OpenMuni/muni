@@ -11,6 +11,10 @@ resource "aws_wafv2_ip_set" "backend" {
   addresses          = ["${var.backend_ipv4}/32"]
 }
 resource "aws_wafv2_web_acl" "accounts" {
+  # Close self-registration before removing the network restriction during a
+  # login-only cutover. Otherwise Terraform could open signup briefly in parallel.
+  depends_on = [aws_cognito_user_pool.accounts]
+
   name  = var.project_name
   scope = "REGIONAL"
   default_action {
