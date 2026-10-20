@@ -7,7 +7,7 @@
   align-items: center;
   justify-content: center;
   min-width: 44px;
-  min-height: 44px;
+  min-height: var(--control-h, 32px);
   max-width: min(24vw, 12rem);
   padding: 0 10px;
   border: 1px solid var(--color-separator, #647386);
