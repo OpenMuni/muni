@@ -1,5 +1,6 @@
 require 'sinatra/base'
 require 'muni'
+require_relative '../auth/navigation'
 
 module Muni
   module Www
@@ -8,6 +9,7 @@ module Muni
       # /stream/* SSE.
       class Pages < Sinatra::Base
         helpers HallResolution
+        helpers Auth::Navigation
         set :views, File.expand_path('../views', __dir__)
         set :public_folder, File.expand_path('../public', __dir__)
         set :host_authorization, { permitted_hosts: [] }

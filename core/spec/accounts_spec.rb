@@ -33,4 +33,31 @@ RSpec.describe Muni::Accounts do
     expect(Muni::Store.db.tables).to eq(before)
     expect(Muni::Store::OPERATIONAL_TABLES).to include(:accounts, :account_sessions, :account_auth_transactions)
   end
+
+  it 'keeps names local and resolves identity exclusively by issuer and subject' do
+    account = described_class.resolve(claims)
+    described_class.update_profile(account[:id], first_name: 'Élodie', last_name: '李')
+    same = described_class.resolve(claims.merge('email' => 'changed@example.test', 'given_name' => 'Untrusted'))
+    expect(same).to include(id: account[:id], first_name: 'Élodie', last_name: '李')
+    other_subject = described_class.resolve(claims.merge('sub' => 'other'))
+    other_issuer = described_class.resolve(claims.merge('iss' => 'https://other.example'))
+    expect([account[:id], other_subject[:id], other_issuer[:id]].uniq.length).to eq(3)
+    expect(other_subject).to include(first_name: nil, last_name: nil)
+  end
+
+  it 'rejects invalid text encodings before any profile write' do
+    account = described_class.resolve(claims)
+    expect do
+      described_class.update_profile(account[:id], first_name: "\xff".force_encoding('UTF-8'), last_name: 'Name')
+    end.to raise_error(described_class::InvalidProfile, 'First name must be valid text.')
+    expect(described_class.account(account[:id])[:first_name]).to be_nil
+  end
+
+  it 'does not restore profile data after deletion begins' do
+    account = described_class.resolve(claims)
+    described_class.update_profile(account[:id], first_name: 'First', last_name: 'Last')
+    described_class.deletion_pending(account[:id])
+    expect(described_class.update_profile(account[:id], first_name: 'Late', last_name: 'Write')).to eq(0)
+    expect(described_class.account(account[:id])).to include(first_name: nil, last_name: nil)
+  end
 end

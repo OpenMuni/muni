@@ -24,6 +24,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta http-equiv="refresh" content="60">
   <title>Muni Status</title>
+  <link rel="stylesheet" href="/css/account-navigation.css">
   <style>
     :root {
       color-scheme: light;
@@ -78,6 +79,13 @@
     .brand {
       display: grid;
       gap: 2px;
+    }
+
+    .status-nav {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-left: auto;
     }
 
     .brand strong {
@@ -334,7 +342,6 @@
         padding-top: 18px;
       }
 
-      .status-top,
       .hero-main,
       .section-head,
       .footer {
@@ -360,7 +367,10 @@
         <strong>Muni Status</strong>
         <span><%= h(status[:name] || 'Cambridge, MA') %></span>
       </div>
-      <a href="/status.json">status.json</a>
+      <nav class="status-nav" aria-label="Site">
+        <a href="/status.json">status.json</a>
+        <%= erb :_account_navigation, layout: false %>
+      </nav>
     </header>
 
     <section class="hero" aria-labelledby="status-title">

@@ -6,6 +6,9 @@ module Muni
   module Accounts
     IDLE_SECONDS = 86_400
     MAX_SECONDS = 604_800
+    NAME_MAX_LENGTH = 100
+
+    class InvalidProfile < StandardError; end
 
     class << self
       def ensure_schema!
@@ -14,6 +17,8 @@ module Muni
           String :issuer, null: false
           String :subject, null: false
           String :email
+          String :first_name
+          String :last_name
           String :preferred_hall
           String :status, null: false, default: 'active'
           Integer :revoked_before, null: false, default: 0
@@ -21,6 +26,7 @@ module Muni
           Integer :deleted_at
           index %i[issuer subject], unique: true
         end
+        ensure_profile_columns!
         db.create_table?(:account_sessions) do
           String :id_hash, primary_key: true
           String :account_id, null: false, index: true
@@ -43,6 +49,14 @@ module Muni
 
       def db = Store.db
       def digest(value) = Digest::SHA256.hexdigest(value.to_s)
+
+      # Called by Store.ensure_tables! while holding its process and file writer locks.
+      def ensure_profile_columns!
+        columns = db.schema(:accounts).map(&:first)
+        %i[first_name last_name].each do |column|
+          db.add_column(:accounts, column, String) unless columns.include?(column)
+        end
+      end
 
       def write(&block)
         Store.with_writer { db.transaction(&block) }
@@ -120,9 +134,32 @@ module Muni
         write { db[:accounts].where(id: id, status: 'active').update(preferred_hall: hall) }
       end
 
+      def profile_incomplete?(account)
+        %i[first_name last_name].any? { |field| account[field].to_s.empty? }
+      end
+
+      def update_profile(id, first_name:, last_name:)
+        names = { first_name: normalize_name(first_name, 'First name'),
+                  last_name:  normalize_name(last_name, 'Last name') }
+        write { db[:accounts].where(id: id, status: 'active').update(names) }
+      end
+
+      def normalize_name(value, label)
+        raise InvalidProfile, "#{label} must be valid text." unless value.is_a?(String) && value.valid_encoding?
+
+        name = value.gsub(/\A[[:space:]]+|[[:space:]]+\z/, '')
+        unless name.length.between?(1, NAME_MAX_LENGTH)
+          raise InvalidProfile, "#{label} must be between 1 and #{NAME_MAX_LENGTH} characters."
+        end
+        raise InvalidProfile, "#{label} must not contain control characters." if name.match?(/[[:cntrl:]]/)
+
+        name
+      end
+
       def deletion_pending(id)
         write do
-          db[:accounts].where(id: id).update(status: 'deletion_pending', email: nil, preferred_hall: nil)
+          db[:accounts].where(id: id).update(status: 'deletion_pending', email: nil, preferred_hall: nil,
+                                             first_name: nil, last_name: nil)
           db[:account_sessions].where(account_id: id).delete
         end
       end

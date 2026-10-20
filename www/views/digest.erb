@@ -5,8 +5,8 @@
   <header class="topbar ui-material native-chrome">
     <%= erb :_municipality_selector, layout: false %>
     <nav class="topbar__nav" aria-label="Site">
-      <%= erb :_account_navigation, layout: false %>
       <a class="topbar__link" href="/about?hall=<%= @hall.slug %>">About</a>
+      <%= erb :_account_navigation, layout: false %>
     </nav>
   </header>
 

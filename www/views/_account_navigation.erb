@@ -1,10 +1,9 @@
+<% account = navigation_account %>
 <% if Muni::Www::Auth.mode == 'public' %>
-  <details class="account-nav">
-    <summary class="topbar__link">Account</summary>
-    <div class="account-nav__menu">
-      <a class="topbar__link" href="/login">Sign in</a>
-      <a class="topbar__link" href="/signup">Create account</a>
-      <a class="topbar__link" href="/account">Account settings</a>
-    </div>
-  </details>
+  <% if account %>
+    <% label = account[:first_name].to_s.empty? ? 'Account' : account[:first_name] %>
+    <a class="topbar__link account-nav" href="/account" aria-label="<%= h("#{label} — Account") %>"><bdi><%= h(label) %></bdi></a>
+  <% else %>
+    <a class="topbar__link account-nav" href="/login">Login</a>
+  <% end %>
 <% end %>
