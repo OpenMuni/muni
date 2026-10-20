@@ -69,14 +69,22 @@ RSpec.describe 'Public account navigation' do
     end
   end
 
-  [{ status: 'deletion_pending' }, { status: 'deleted' }, { revoked_before: Time.now.to_i + 60 }].each do |state|
-    it "does not personalize navigation for a disabled or revoked account (#{state.keys.first})" do
-      sign_in
-      Muni::Store.db[:accounts].update(state.merge(first_name: 'Hidden'))
+  %w[deletion_pending deleted].each do |status|
+    it "does not personalize navigation for a #{status} account" do
+      row = sign_in
+      Muni::Store.db[:accounts].where(id: row[:account_id]).update(status: status, first_name: 'Hidden')
       get 'https://muni.example/'
       expect(last_response.body).to include('href="/login">Login</a>')
       expect(last_response.body).not_to include('<bdi>Hidden</bdi>')
     end
+  end
+
+  it 'does not personalize navigation for a session revoked at its authentication time' do
+    row = sign_in
+    Muni::Store.db[:accounts].where(id: row[:account_id]).update(revoked_before: row[:auth_time], first_name: 'Hidden')
+    get 'https://muni.example/'
+    expect(last_response.body).to include('href="/login">Login</a>')
+    expect(last_response.body).not_to include('<bdi>Hidden</bdi>')
   end
 
   it 'ignores forged session cookies and keeps municipal APIs free of names' do
