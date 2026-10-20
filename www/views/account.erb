@@ -1,6 +1,14 @@
-<h1>Your account</h1>
+<h1><%= @onboarding ? 'Complete your profile' : 'Your account' %></h1>
 <p><%= h(@account[:email]) %></p>
 <% if @message %><p role="status"><%= h(@message) %></p><% end %>
+<section aria-labelledby="profile-title">
+  <h2 id="profile-title">Your name</h2>
+  <% if @onboarding %>
+    <p>Welcome to Muni. Add your first and last name to personalize your account.</p>
+    <p><a href="/">Continue browsing public information</a></p>
+  <% end %>
+  <%= erb :_profile_form, layout: false %>
+</section>
 <section aria-labelledby="city-title">
   <h2 id="city-title">Your city</h2>
   <p>This preference does not verify residency. Public information is available to everyone.</p>
@@ -47,7 +55,7 @@
 </section>
 <section aria-labelledby="delete-title">
   <h2 id="delete-title">Delete account</h2>
-  <p>This removes your login, passkeys, and city preference. Public municipal records are unaffected. Backup copies expire within the backup retention period.</p>
+  <p>This removes your login, passkeys, profile names, and city preference. Public municipal records are unaffected. Backup copies, including names, expire within the backup retention period.</p>
   <form method="post" action="/account/delete">
     <input type="hidden" name="csrf" value="<%= h(@csrf) %>">
     <label><input type="checkbox" name="confirm" value="delete" required> I want to delete my account.</label>

@@ -5,7 +5,11 @@ header { display: flex; justify-content: space-between; border-bottom: 1px solid
 section { margin-block: 2rem; padding-top: 1rem; border-top: 1px solid GrayText; }
 a { color: LinkText; }
 form { margin-block: 1rem; }
-button, select { font: inherit; padding: .55rem .8rem; margin: .25rem; }
+button, select, input[type="text"] { font: inherit; padding: .55rem .8rem; margin: .25rem; }
 button { cursor: pointer; }
+.profile-form { display: grid; gap: .5rem; }
+.profile-form input, .profile-form button { box-sizing: border-box; width: 100%; min-width: 0; margin: 0; }
+.profile-form button { margin-top: .75rem; }
+[role="alert"] { border-left: 3px solid currentColor; padding-left: .75rem; }
 .credential { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 :focus-visible { outline: 3px solid Highlight; outline-offset: 3px; }

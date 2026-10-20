@@ -71,6 +71,21 @@ module Muni
           render_account
         end
 
+        post '/account/profile' do
+          csrf!
+          Muni::Accounts.update_profile(account_session[:account_id],
+                                        first_name: params['first_name'], last_name: params['last_name'])
+          redirect '/account', 303
+        rescue Muni::Accounts::InvalidProfile => e
+          status 422
+          @profile = %w[first_name last_name].to_h do |field|
+            value = params[field]
+            [field.to_sym, value.is_a?(String) ? value : '']
+          end
+          @profile_error = e.message
+          render_account
+        end
+
         post '/account/preference' do
           csrf!
           hall = Muni::Hall.all.find { |candidate| candidate.public? && candidate.slug == params['hall'] }

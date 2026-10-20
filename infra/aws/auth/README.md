@@ -10,7 +10,9 @@ user migration, identity pool, operator authorization, or inference is included.
 `MUNI_AUTH_MODE=off` is the default: public pages and ordinary local development
 need no provider credentials. `pilot` enables account routes without public
 navigation; the Cognito WAF allowlist is the actual enrollment restriction.
-`public` exposes navigation. Restart the application after configuration changes.
+`public` exposes a top-right **Login** link to `/login` on public pages, replaced
+by the signed-in user's first name (or **Account** until saved) linking to
+`/account`. Restart the application after configuration changes.
 `MUNI_AUTH_PASSKEYS_ENABLED=0` keeps passkey management closed during the password
 pilot; enable it only alongside the pool's `passkeys_enabled=true`.
 
@@ -18,15 +20,35 @@ pilot; enable it only alongside the pool's `passkeys_enabled=true`.
   uses code + S256 PKCE, browser-bound state, nonce, trusted JWKS, and live
   verified-user checks. Transactions expire after ten minutes and are consumed
   once. External return URLs are ignored.
-- Identity is the pool issuer plus subject, never email or legacy identifiers.
+- `/login` continues into Cognito managed login with email/password, its
+  **Create an account** option, and enabled passkey sign-in. No local password
+  form or Cognito attribute change is needed. Signup remains subject to the
+  existing WAF, SES and launch gates; exposing navigation does not open enrollment.
+- Identity is the pool issuer plus subject, never email, names or legacy identifiers.
   SQLite `accounts`, `account_sessions`, and `account_auth_transactions` are
   operational tables created additively through the existing writer lock.
+- Startup adds nullable `accounts.first_name` and `accounts.last_name` columns
+  to existing databases without rebuilding accounts or changing identity indexes.
+  The first verified sign-in returns to `/account`, which offers the profile form
+  whenever either name is missing, including for existing accounts. The same form
+  edits saved names. Both submitted names must contain 1–100 Unicode characters
+  after trimming surrounding Unicode whitespace; control characters are rejected.
+  Names are escaped in text and form attributes and never determine identity,
+  authorization or residency. Public browsing and existing account controls remain
+  available without completing the form.
+- Public HTML containing account navigation is always `Cache-Control: no-store,
+  private` with `Vary: Cookie`, including signed-out, off and pilot responses.
+  Navigation reads only the existing local session's expiration/revocation and
+  active account state; it neither contacts Cognito nor requires its configuration.
+  An authentication outage therefore cannot block public browsing. This display
+  is not an authorization check: account routes still validate/refresh provider
+  tokens. Municipal APIs and their shared response cache never include names.
 - The browser holds an opaque `__Host-muni_session` cookie. SQLite holds its
   SHA-256 hash and authenticated AES-256-GCM ciphertext for retained tokens.
   Sessions expire after 24 hours idle or seven days total. Refresh leases are
   serialized in SQLite; provider calls never hold the database writer lock.
   A simultaneous request may receive a retryable 503 while refresh completes.
-- `/account` shows verified email, city preference, and account controls. All
+- `/account` shows verified email, editable profile names, city preference, and account controls. All
   account responses are private/no-store. Mutations require a CSRF token and
   the exact Origin, or `Origin: null` with browser Fetch Metadata reporting
   `Sec-Fetch-Site: same-origin`. The latter supports form submissions under
@@ -52,11 +74,14 @@ pilot; enable it only alongside the pool's `passkeys_enabled=true`.
   then clears the managed-login browser session. Global logout invalidates all
   local sessions first. Other browsers' Cognito cookies are not remotely erased;
   Muni requires fresh login and rejects authentication older than local revocation.
-- Deletion disables local access first and removes email, preference, and sessions.
+- Deletion disables local access first and removes email, both names, preference, and sessions.
   A failed Cognito deletion remains `deletion_pending` for operator retry. After
   successful deletion, only a subject tombstone remains for at most seven days
   plus the interval until the next authentication transaction cleanup. Municipal
-  records are untouched. Existing backups expire under their established policy.
+  records are untouched. Existing backups, including profile names, expire under
+  their established policy: local mode retains seven daily and four weekly
+  snapshots; AWS external mode defaults to two verified local snapshots and
+  60 days in S3 (see [backup operations](../README.md)). Do not rewrite retained backups.
 
 ## Provisioning
 
@@ -144,6 +169,11 @@ access tokens; confidential client credentials remain on the backend.
    logout, provider-failure behavior and same-subject reauthentication. Use a real
    inbox and never record passwords/codes/tokens in evidence. The human tester
    enters passwords and approves platform passkey gestures directly.
+   Verify the name form for new and existing nameless accounts, Unicode edits,
+   deletion, desktop/mobile keyboard navigation, and no cross-browser name
+   leakage. Check `/login` still offers Cognito's Create an account and enabled
+   passkey options. Profile/navigation implementation alone does not authorize
+   production deployment or removing the pilot restriction.
 8. Enable passkeys in the pool and application. In Safari and Chromium verify a
    platform passkey, same-account password/passkey sign-in, enrollment cancellation,
    unsupported-browser password fallback, removal including the last credential,

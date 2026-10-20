@@ -1,55 +1,8 @@
 require 'spec_helper'
-require 'uri'
+require_relative 'support/accounts'
 
 RSpec.describe 'Cognito account routes' do
-  def app = Muni::Www::App
-
-  let(:claims) do
-    { 'iss' => config.issuer, 'sub' => 'subject-one', 'email' => 'resident@example.test',
-      'email_verified' => true, 'auth_time' => Time.now.to_i, 'exp' => Time.now.to_i + 300 }
-  end
-  let(:tokens) do
-    { 'access_token' => 'private-access-marker', 'id_token' => 'id', 'refresh_token' => 'private-refresh-marker' }
-  end
-  let(:config) do
-    Muni::Www::Auth::Config.new(
-      'MUNI_PUBLIC_BASE_URL' => 'https://muni.example', 'MUNI_COGNITO_DOMAIN' => 'https://auth.muni.example',
-      'MUNI_COGNITO_POOL_ID' => 'us-east-1_example', 'MUNI_COGNITO_CLIENT_ID' => 'client',
-      'MUNI_COGNITO_CLIENT_SECRET' => 'fixture-only', 'MUNI_AUTH_ENCRYPTION_KEY' => Base64.strict_encode64('k' * 32)
-    )
-  end
-  let(:provider) do
-    instance_double(Muni::Www::Auth::Provider, exchange: tokens, validate: claims, verify_user: nil,
-                                            credentials: [], global_sign_out: nil, revoke: nil,
-                                            enrollment_url: 'https://auth.muni.example/passkeys/add?client_id=client',
-                                            logout_url: 'https://auth.muni.example/logout', delete_user: nil)
-  end
-  let(:service) { Muni::Www::Auth::Service.new(config, provider: provider) }
-
-  before do
-    Muni::Store.ensure_tables!
-    allow(Muni::Www::Auth).to receive_messages(mode: 'pilot', service: service, passkeys_enabled?: true)
-    allow(provider).to receive(:authorize) do |_transaction, state, path:|
-      "https://auth.muni.example#{path}?state=#{state}"
-    end
-  end
-
-  def start(path = '/login')
-    get "https://muni.example#{path}"
-    URI.decode_www_form(URI(last_response.location).query).to_h.fetch('state')
-  end
-
-  def sign_in
-    state = start
-    get 'https://muni.example/auth/cognito/callback', state: state, code: 'one-use-code'
-    Muni::Accounts.session(rack_mock_session.cookie_jar['__Host-muni_session'])
-  end
-
-  def submit(path, attributes = {})
-    row = Muni::Accounts.session(rack_mock_session.cookie_jar['__Host-muni_session'])
-    post "https://muni.example#{path}", { csrf: row&.fetch(:csrf) }.merge(attributes),
-         'HTTP_ORIGIN' => 'https://muni.example'
-  end
+  include_context 'with Cognito accounts'
 
   def begin_enrollment
     sign_in
@@ -360,12 +313,14 @@ RSpec.describe 'Cognito account routes' do
 
   it 'retains a disabled deletion record when the provider is unavailable' do
     row = sign_in
+    submit '/account/profile', first_name: 'Élodie', last_name: '李'
     Muni::Store.db[:account_sessions].update(token_expires_at: Time.now.to_i - 1)
     allow(provider).to receive(:refresh).and_raise(Muni::Www::Auth::Unavailable)
     allow(provider).to receive(:delete_user).and_raise(Muni::Www::Auth::Unavailable)
     submit '/account/delete', confirm: 'delete'
     expect(last_response.status).to eq(503)
-    expect(Muni::Accounts.account(row[:account_id])).to include(status: 'deletion_pending', email: nil)
+    expect(Muni::Accounts.account(row[:account_id])).to include(status: 'deletion_pending', email: nil,
+                                                                first_name: nil, last_name: nil)
     expect(Muni::Store.db[:account_sessions].count).to eq(0)
     expect(Muni::Accounts.resolve(claims)).to be_nil
     expect(provider).not_to have_received(:refresh)
@@ -373,9 +328,11 @@ RSpec.describe 'Cognito account routes' do
 
   it 'deletes account data while retaining only a non-reusable identity tombstone' do
     row = sign_in
+    submit '/account/profile', first_name: 'Élodie', last_name: '李'
     submit '/account/delete', confirm: 'delete'
     expect(last_response.status).to eq(303)
-    expect(Muni::Accounts.account(row[:account_id])).to include(status: 'deleted', email: nil, preferred_hall: nil)
+    expect(Muni::Accounts.account(row[:account_id])).to include(status: 'deleted', email: nil, preferred_hall: nil,
+                                                                first_name: nil, last_name: nil)
     expect(provider).to have_received(:delete_user).with(tokens)
   end
 
@@ -409,7 +366,7 @@ RSpec.describe 'Cognito account routes' do
     ['/?hall=cambridge', '/mobility/subway?hall=boston'].each do |path|
       get path
       expect(last_response.status).to eq(200)
-      expect(last_response.body).to include('href="/login"', 'href="/signup"', 'href="/account"')
+      expect(last_response.body).to include('href="/login">Login</a>')
     end
     allow(Muni::Www::Auth).to receive(:mode).and_return('pilot')
     get '/'

@@ -10,7 +10,9 @@ Massachusetts is the launch city; Boston and the Charles River region are also
 being developed. See [data and attribution](docs/DATA_AND_ATTRIBUTION.md) for
 the distinction between Muni's code and upstream data. The iOS app and image
 assets are withheld pending provenance review. Optional Cognito accounts support
-email/password and passkeys, with authentication disabled by default. See the
+email/password and passkeys, with authentication disabled by default. In public
+mode, Login opens Cognito managed login; signed-in visitors see their first name
+and can edit their profile on Account. Municipal information remains public. See the
 [account operations guide](infra/aws/auth/README.md). Ask conversations, report
 submission, attestations, and the operator view remain excluded.
 

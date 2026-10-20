@@ -53,8 +53,10 @@ module Muni
         def render_account(message = nil)
           @account = account_session[:account]
           @csrf = account_session[:csrf]
-          @credentials = Auth.passkeys_enabled? ? auth.provider.credentials(account_session[:plaintext_tokens]) : []
           @message = message
+          @profile ||= @account
+          @onboarding = Muni::Accounts.profile_incomplete?(@account)
+          @credentials = Auth.passkeys_enabled? ? auth.provider.credentials(account_session[:plaintext_tokens]) : []
           erb :account, layout: :account_layout
         end
 

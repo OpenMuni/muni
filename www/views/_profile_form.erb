@@ -1,0 +1,14 @@
+<% if @profile_error %>
+  <p id="profile-error" role="alert"><%= h(@profile_error) %></p>
+<% end %>
+<p id="profile-hint">Enter 1–<%= Muni::Accounts::NAME_MAX_LENGTH %> characters for each name. Names are only used for your profile.</p>
+<form method="post" action="/account/profile" class="profile-form" aria-describedby="profile-hint<%= ' profile-error' if @profile_error %>">
+  <input type="hidden" name="csrf" value="<%= h(@csrf) %>">
+  <label for="first-name">First name</label>
+  <input type="text" id="first-name" name="first_name" autocomplete="given-name" required
+         maxlength="<%= Muni::Accounts::NAME_MAX_LENGTH %>" value="<%= h(@profile[:first_name]) %>">
+  <label for="last-name">Last name</label>
+  <input type="text" id="last-name" name="last_name" autocomplete="family-name" required
+         maxlength="<%= Muni::Accounts::NAME_MAX_LENGTH %>" value="<%= h(@profile[:last_name]) %>">
+  <button type="submit">Save name</button>
+</form>
