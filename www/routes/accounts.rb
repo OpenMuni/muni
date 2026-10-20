@@ -25,7 +25,8 @@ module Muni
 
           headers 'Cache-Control' => 'no-store, private', 'Referrer-Policy' => 'no-referrer',
                   'X-Content-Type-Options' => 'nosniff', 'X-Frame-Options' => 'DENY',
-                  'Content-Security-Policy' => "default-src 'none'; style-src 'self'; img-src 'self'; " \
+                  'Content-Security-Policy' => "default-src 'none'; script-src 'self'; " \
+                                               "style-src 'self'; img-src 'self'; " \
                                                "form-action 'self' #{auth.config.domain}; " \
                                                "base-uri 'none'; frame-ancestors 'none'"
           ensure_origin!
@@ -68,7 +69,8 @@ module Muni
 
         get '/account' do
           protected_account!
-          render_account
+          message = 'Your city and home station preferences have been saved.' if params['saved'] == 'preferences'
+          render_account(message)
         end
 
         post '/account/profile' do
@@ -88,13 +90,19 @@ module Muni
 
         post '/account/preference' do
           csrf!
-          hall = Muni::Hall.all.find { |candidate| candidate.public? && candidate.slug == params['hall'] }
-          halt 422, 'Choose an available city.' unless hall
-
-          Muni::Accounts.preference(account_session[:account_id], hall.slug)
-          response.set_cookie('hall', value: hall.slug, secure: true, same_site: :lax,
+          line, station = if params['clear_station'] == '1'
+                            ['', '']
+                          else
+                            params.values_at('home_station_line', 'home_station_id')
+                          end
+          Muni::Accounts.preference(account_session[:account_id], params['hall'], line: line, station: station)
+          response.set_cookie('hall', value: params['hall'], secure: true, same_site: :lax,
                                      path: '/', max_age: Muni::Accounts::MAX_SECONDS)
-          redirect '/account', 303
+          redirect '/account?saved=preferences', 303
+        rescue Muni::Accounts::InvalidPreference => e
+          preference_error(e.message, 422)
+        rescue Muni::Transit::Client::Error
+          preference_error('Station options are temporarily unavailable. Reload to retry, or save just your city.', 503)
         end
 
         post '/account/passkeys' do

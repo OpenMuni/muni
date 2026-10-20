@@ -37,7 +37,7 @@ module Muni
                   'id' => stop['id'], 'name' => attrs['name'], 'latitude' => attrs['latitude'],
                   'longitude' => attrs['longitude'], 'municipality' => attrs['municipality'], 'routes' => []
                 }
-                station['routes'] << route
+                station['routes'] |= [route]
               end
             end
             by_id.values.sort_by { |station| station['name'].to_s }

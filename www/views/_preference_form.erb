@@ -1,0 +1,37 @@
+<% if @preference_error %><p role="alert" id="preference-error"><%= h(@preference_error) %></p><% end %>
+<form method="post" action="/account/preference" class="preference-form" id="preference-form">
+  <input type="hidden" name="csrf" value="<%= h(@csrf) %>">
+  <label for="hall">Home city</label>
+  <select name="hall" id="hall" required>
+    <option value="">Choose a city</option>
+    <% Muni::Hall.all.select(&:public?).each do |hall| %>
+      <option value="<%= h(hall.slug) %>" data-network="<%= h(Muni::Accounts::Preferences.network_for(hall.slug)) %>" <%= 'selected' if @preferences[:preferred_hall] == hall.slug %>><%= h(hall.name) %></option>
+    <% end %>
+  </select>
+  <fieldset id="home-station">
+    <legend>Home train station (optional)</legend>
+    <p id="station-help">Boston and Cambridge share the MBTA subway. Choose a line, then a station. Transfer stations appear on each line that serves them.</p>
+    <% if @stations_unavailable %>
+      <p role="status">MBTA station options are temporarily unavailable. You can still save your city; your saved station will be kept for Boston or Cambridge.</p>
+      <% if @account[:home_station_id] %><p>Saved station: <%= h(@account[:home_station_id]) %> (<%= h(@account[:home_station_line]) %>).</p><% end %>
+    <% else %>
+      <label for="home-station-line">Train line</label>
+      <select name="home_station_line" id="home-station-line" aria-describedby="station-help">
+        <option value="">No home station</option>
+        <% Muni::Transit::ROUTES.each do |line| %>
+          <option value="<%= h(line) %>" <%= 'selected' if @preferences[:home_station_line] == line %>><%= h(line.tr('-', ' ')) %></option>
+        <% end %>
+      </select>
+      <label for="home-station-id">Home station</label>
+      <select name="home_station_id" id="home-station-id" aria-describedby="station-help">
+        <option value="">No home station</option>
+        <% @stations.each do |station| %>
+          <option value="<%= h(station['id']) %>" data-routes="<%= h(station['routes'].join(' ')) %>" <%= 'selected' if @preferences[:home_station_id] == station['id'] %>><%= h(station['name']) %> — <%= h(station['routes'].map { |line| line.tr('-', ' ') }.join(', ')) %></option>
+        <% end %>
+      </select>
+      <noscript><p>Choose a station with your train line in its label, or leave the station blank to save only your city.</p></noscript>
+    <% end %>
+  </fieldset>
+  <button type="submit"><%= @stations_unavailable ? 'Save city' : 'Save preferences' %></button>
+  <button type="submit" name="clear_station" value="1">Clear home station and save city</button>
+</form>

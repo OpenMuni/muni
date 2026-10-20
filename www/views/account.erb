@@ -12,16 +12,7 @@
 <section aria-labelledby="city-title">
   <h2 id="city-title">Your city</h2>
   <p>This preference does not verify residency. Public information is available to everyone.</p>
-  <form method="post" action="/account/preference">
-    <input type="hidden" name="csrf" value="<%= h(@csrf) %>">
-    <label for="hall">Preferred city</label>
-    <select name="hall" id="hall">
-      <% Muni::Hall.all.select(&:public?).each do |hall| %>
-        <option value="<%= h(hall.slug) %>" <%= 'selected' if @account[:preferred_hall] == hall.slug %>><%= h(hall.name) %></option>
-      <% end %>
-    </select>
-    <button type="submit">Save city</button>
-  </form>
+  <%= erb :_preference_form, layout: false %>
 </section>
 <% if Muni::Www::Auth.passkeys_enabled? %>
 <section aria-labelledby="passkeys-title">
@@ -55,7 +46,7 @@
 </section>
 <section aria-labelledby="delete-title">
   <h2 id="delete-title">Delete account</h2>
-  <p>This removes your login, passkeys, profile names, and city preference. Public municipal records are unaffected. Backup copies, including names, expire within the backup retention period.</p>
+  <p>This removes your login, passkeys, profile names, city preference, and home station. Public municipal records are unaffected. Backup copies, including names and preferences, expire within the backup retention period.</p>
   <form method="post" action="/account/delete">
     <input type="hidden" name="csrf" value="<%= h(@csrf) %>">
     <label><input type="checkbox" name="confirm" value="delete" required> I want to delete my account.</label>

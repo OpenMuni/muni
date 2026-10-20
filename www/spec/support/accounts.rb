@@ -26,8 +26,18 @@ RSpec.shared_context 'with Cognito accounts' do
   end
   let(:service) { Muni::Www::Auth::Service.new(config, provider: provider) }
 
+  def stations
+    @stations ||= [
+      { 'id' => 'place-harsq', 'name' => 'Harvard', 'routes' => ['Red'] },
+      { 'id' => 'place-pktrm', 'name' => 'Park Street', 'routes' => %w[Red Green-B Green-C Green-D Green-E] },
+      { 'id' => 'place-gover', 'name' => 'Government Center', 'routes' => %w[Blue Green-B Green-C Green-D Green-E] },
+      { 'id' => 'place-matt', 'name' => 'Mattapan', 'routes' => ['Mattapan'] }
+    ]
+  end
+
   before do
     Muni::Store.ensure_tables!
+    allow(Muni::Transit).to receive(:stations).and_return('data' => stations)
     allow(Muni::Www::Auth).to receive_messages(mode: 'pilot', service: service, passkeys_enabled?: true)
     allow(provider).to receive(:authorize) do |_transaction, state, path:|
       "https://auth.muni.example#{path}?state=#{state}"
