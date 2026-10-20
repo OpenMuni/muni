@@ -1,6 +1,16 @@
 # Optional reverse proxy. Terminate TLS at your own edge before this HTTP listener.
 # MUNI_WEB_UPSTREAM selects the local Puma listener.
 {
+	# Applies to proxy errors as well as access logs. Never record callback
+	# queries, request headers, or response cookies/redirect locations.
+	log default {
+		format filter {
+			request>uri delete
+			request>headers delete
+			resp_headers delete
+			wrap json
+		}
+	}
 	# TLS termination is the operator's responsibility.
 	auto_https off
 	servers {
@@ -54,13 +64,18 @@
 
 	log {
 		output stderr
-		format json
+		format filter {
+			request>uri delete
+			request>headers delete
+			resp_headers delete
+			wrap json
+		}
 	}
 
 	# Standard hardening headers; enable HSTS at your TLS edge.
 	header {
 		X-Content-Type-Options "nosniff"
-		Referrer-Policy "same-origin"
+		Referrer-Policy "no-referrer"
 		-Server
 	}
 }

@@ -5,6 +5,7 @@ require 'time'
 require 'tempfile'
 require 'muni/service_request_map'
 require 'muni/efficiency_indexes'
+require 'muni/accounts'
 
 module Muni
   # rubocop:disable-next Metrics/ModuleLength
@@ -13,6 +14,7 @@ module Muni
     BACKUP_DAILY_RETENTION = 7
     BACKUP_WEEKLY_RETENTION = 4
     OPERATIONAL_TABLES = %i[
+      accounts account_sessions account_auth_transactions
       analytics_results
       service_request_map_points efficiency_index_changes
       beats_log
@@ -72,6 +74,7 @@ module Muni
           end
 
           ensure_feature_tables!
+          Muni::Accounts.ensure_schema!
           Muni::Registry.records.each_value { |klass| ensure_record_table!(klass) }
           Muni::Water::Storage.ensure_tables!
           Muni::ServiceRequestMap.ensure_schema!
