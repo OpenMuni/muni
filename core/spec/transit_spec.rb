@@ -10,13 +10,24 @@ RSpec.describe Muni::Transit::Client do
                                                     'latitude' => 42.36, 'longitude' => -71.1,
                                                     'municipality' => 'Cambridge' } }
     allow(described_class).to receive(:pages) do |_path, params|
-      %w[Red Green-B].include?(params['filter[route]']) ? [stop] : []
+      %w[Red Green-B].include?(params['filter[route]']) ? [stop, stop] : []
     end
     result = described_class.stations
     expect(result.fetch('data')).to eq([{ 'id' => 'place-cntsq', 'name' => 'Central',
                                            'latitude' => 42.36, 'longitude' => -71.1,
                                            'municipality' => 'Cambridge', 'routes' => %w[Red Green-B] }])
     expect(result['fetched_at']).not_to be_nil
+  end
+
+  it 'excludes platforms, directional stops and entrances from the station catalog' do
+    rows = [
+      { 'id' => '70076', 'attributes' => { 'name' => 'Park Street - Southbound', 'location_type' => 0 } },
+      { 'id' => 'place-platform', 'attributes' => { 'name' => 'Platform', 'location_type' => 0 } },
+      { 'id' => 'place-entrance', 'attributes' => { 'name' => 'Entrance', 'location_type' => 2 } },
+      { 'id' => 'place-pktrm', 'attributes' => { 'name' => 'Park Street', 'location_type' => 1 } }
+    ]
+    allow(described_class).to receive(:pages).and_return(rows)
+    expect(described_class.stations.fetch('data').map { |station| station['id'] }).to eq(['place-pktrm'])
   end
 
   it 'follows MBTA pagination and rejects links to other hosts' do

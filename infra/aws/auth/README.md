@@ -36,6 +36,18 @@ pilot; enable it only alongside the pool's `passkeys_enabled=true`.
   Names are escaped in text and form attributes and never determine identity,
   authorization or residency. Public browsing and existing account controls remain
   available without completing the form.
+- Home city uses the existing local `preferred_hall` field. Home subway preferences
+  add nullable `home_station_network`, `home_station_line`, and `home_station_id`
+  columns through the same writer-locked, repeatable migration. No Cognito
+  attributes or configuration changes are required. Boston and Cambridge share
+  MBTA; station options and validation reuse the subway client's canonical
+  parent station IDs and route memberships, including transfers and Green Line
+  branches. Platforms and directional stops are not home stations.
+  City-only submissions preserve the station within the same network and clear
+  it when the network changes. Explicit blank station choices clear it.
+  Station data outages leave city-only saving and explicit clearing available.
+  Preference writes validate the public city, line, and station before any update;
+  the session owner is the only account that can be changed.
 - Public HTML containing account navigation is always `Cache-Control: no-store,
   private` with `Vary: Cookie`, including signed-out, off and pilot responses.
   Navigation reads only the existing local session's expiration/revocation and
@@ -48,7 +60,7 @@ pilot; enable it only alongside the pool's `passkeys_enabled=true`.
   Sessions expire after 24 hours idle or seven days total. Refresh leases are
   serialized in SQLite; provider calls never hold the database writer lock.
   A simultaneous request may receive a retryable 503 while refresh completes.
-- `/account` shows verified email, editable profile names, city preference, and account controls. All
+- `/account` shows verified email, editable profile names, city and home station preferences, and account controls. All
   account responses are private/no-store. Mutations require a CSRF token and
   the exact Origin, or `Origin: null` with browser Fetch Metadata reporting
   `Sec-Fetch-Site: same-origin`. The latter supports form submissions under
@@ -74,11 +86,11 @@ pilot; enable it only alongside the pool's `passkeys_enabled=true`.
   then clears the managed-login browser session. Global logout invalidates all
   local sessions first. Other browsers' Cognito cookies are not remotely erased;
   Muni requires fresh login and rejects authentication older than local revocation.
-- Deletion disables local access first and removes email, both names, preference, and sessions.
+- Deletion disables local access first and removes email, both names, city and home station preferences, and sessions.
   A failed Cognito deletion remains `deletion_pending` for operator retry. After
   successful deletion, only a subject tombstone remains for at most seven days
   plus the interval until the next authentication transaction cleanup. Municipal
-  records are untouched. Existing backups, including profile names, expire under
+  records are untouched. Existing backups, including profile names and city/station preferences, expire under
   their established policy: local mode retains seven daily and four weekly
   snapshots; AWS external mode defaults to two verified local snapshots and
   60 days in S3 (see [backup operations](../README.md)). Do not rewrite retained backups.

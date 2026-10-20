@@ -56,8 +56,27 @@ module Muni
           @message = message
           @profile ||= @account
           @onboarding = Muni::Accounts.profile_incomplete?(@account)
+          prepare_preferences
           @credentials = Auth.passkeys_enabled? ? auth.provider.credentials(account_session[:plaintext_tokens]) : []
           erb :account, layout: :account_layout
+        end
+
+        def prepare_preferences
+          @preferences ||= @account
+          @stations = Muni::Transit.stations.fetch('data')
+        rescue Muni::Transit::Client::Error
+          @stations = []
+          @stations_unavailable = true
+        end
+
+        def preference_error(message, code)
+          status code
+          @preference_error = message
+          @preferences = { preferred_hall: params['hall'], home_station_line: params['home_station_line'],
+                           home_station_id: params['home_station_id'] }.transform_values do |value|
+            value.is_a?(String) ? value : ''
+          end
+          render_account
         end
 
         def ensure_origin!

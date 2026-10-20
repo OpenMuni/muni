@@ -1,5 +1,6 @@
 require 'securerandom'
 require 'digest'
+require 'muni/accounts/preferences'
 
 module Muni
   # Account records are separate from municipal records and legacy identity data.
@@ -53,7 +54,7 @@ module Muni
       # Called by Store.ensure_tables! while holding its process and file writer locks.
       def ensure_profile_columns!
         columns = db.schema(:accounts).map(&:first)
-        %i[first_name last_name].each do |column|
+        %i[first_name last_name home_station_network home_station_line home_station_id].each do |column|
           db.add_column(:accounts, column, String) unless columns.include?(column)
         end
       end
@@ -130,8 +131,19 @@ module Muni
         end
       end
 
-      def preference(id, hall)
-        write { db[:accounts].where(id: id, status: 'active').update(preferred_hall: hall) }
+      def preference(id, hall, line: nil, station: nil)
+        preferences = Preferences.validate(hall, line: line, station: station)
+        write do
+          row = account(id)
+          next 0 unless row && row[:status] == 'active'
+
+          # Omitted station controls (including old clients and an MBTA outage) preserve
+          # the saved choice only while the city still belongs to the same network.
+          if preferences.empty? && row[:home_station_network] != Preferences.network_for(hall)
+            preferences = Preferences::EMPTY
+          end
+          db[:accounts].where(id: id, status: 'active').update(preferences.merge(preferred_hall: hall))
+        end
       end
 
       def profile_incomplete?(account)
@@ -158,8 +170,10 @@ module Muni
 
       def deletion_pending(id)
         write do
-          db[:accounts].where(id: id).update(status: 'deletion_pending', email: nil, preferred_hall: nil,
-                                             first_name: nil, last_name: nil)
+          db[:accounts].where(id: id).update(Preferences::EMPTY.merge(
+                                               status: 'deletion_pending', email: nil, preferred_hall: nil,
+                                               first_name: nil, last_name: nil
+                                             ))
           db[:account_sessions].where(account_id: id).delete
         end
       end
